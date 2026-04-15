@@ -22,38 +22,42 @@ async function addModel(modelName, videoPath) {
       recursive: true
     })
   }
+
   // copy video to model video path
   const extname = path.extname(videoPath)
   const modelFileName = dayjs().format('YYYYMMDDHHmmssSSS') + extname
   const modelPath = path.join(assetPath.model, modelFileName)
 
-  await toH264(videoPath, modelPath)
+  try {
+    await toH264(videoPath, modelPath)
 
-  // 用ffmpeg分离音频
-  if (!fs.existsSync(assetPath.ttsTrain)) {
-    fs.mkdirSync(assetPath.ttsTrain, {
-      recursive: true
-    })
-  }
-  const audioPath = path.join(assetPath.ttsTrain, modelFileName.replace(extname, '.wav'))
-  return extractAudio(modelPath, audioPath).then(() => {
+    // 用ffmpeg分离音频
+    if (!fs.existsSync(assetPath.ttsTrain)) {
+      fs.mkdirSync(assetPath.ttsTrain, {
+        recursive: true
+      })
+    }
+    const audioPath = path.join(assetPath.ttsTrain, modelFileName.replace(extname, '.wav'))
+    await extractAudio(modelPath, audioPath)
+
     // 训练语音模型
     const relativeAudioPath = path.relative(assetPath.ttsRoot, audioPath)
-    if (process.env.NODE_ENV === 'development') {
-      // TODO 写死调试
-      return trainVoice('origin_audio/test.wav', 'zh')
-    } else {
-      return trainVoice(relativeAudioPath, 'zh')
+    const voiceId = await trainVoice(relativeAudioPath, 'zh')
+    if (!voiceId) {
+      throw new Error('语音模型训练失败，未生成可用的 voiceId')
     }
-  }).then((voiceId)=>{
+
     // 插入模特信息
     const relativeModelPath = path.relative(assetPath.model, modelPath)
-    const relativeAudioPath = path.relative(assetPath.ttsRoot, audioPath)
+    const storedAudioPath = path.relative(assetPath.ttsRoot, audioPath)
 
     // insert model info to db
-    const id = insert({ modelName, videoPath: relativeModelPath, audioPath: relativeAudioPath, voiceId })
+    const id = insert({ modelName, videoPath: relativeModelPath, audioPath: storedAudioPath, voiceId })
     return id
-  })
+  } catch (error) {
+    log.error('~ addModel ~ error:', error)
+    throw error
+  }
 }
 
 function page({ page, pageSize, name = '' }) {

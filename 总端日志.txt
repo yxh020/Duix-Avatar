@@ -1,0 +1,30 @@
+[debug] ENV: development-win32
+[info]  FFmpeg path: D:\Code\Duix-Avatar\resources\ffmpeg\win-amd64\bin\ffmpeg.exe
+[info]  FFprobe path: D:\Code\Duix-Avatar\resources\ffmpeg\win-amd64\bin\ffprobe.exe
+[info]  [DB] Connected: C:\Users\javau\AppData\Roaming\Duix.Avatar\biz.db
+[debug] [SQL Get]: select val from context where key = ? [ 'db_version' ]
+[debug] [SQL Get]: select val from context where key = ? [ 'lang' ]
+[debug] [SQL Run]: update context set val = ? where key = ? [ 'zh', 'lang' ]
+[debug] [SQL Get]: select val from context where key = ? [ 'is_agree' ]
+[debug] [SQL Get]: SELECT COUNT(*) as total FROM f2f_model WHERE name like '%%' []
+[debug] [SQL All]: SELECT * FROM f2f_model WHERE name like '%%' ORDER BY created_at DESC LIMIT 10 OFFSET 0 []
+[debug] [SQL Get]: SELECT COUNT(*) as total FROM f2f_model WHERE name like '%%' []
+[43828:0415/180613.614:ERROR:ffmpeg_common.cc(970)] Unsupported pixel format: -1
+[43828:0415/180613.615:ERROR:ffmpeg_common.cc(970)] Unsupported pixel format: -1
+[debug] [SQL Get]: SELECT COUNT(*) as total FROM f2f_model WHERE name like '%%' []
+[debug] [SQL All]: SELECT * FROM f2f_model WHERE name like '%%' ORDER BY created_at DESC LIMIT 100 OFFSET 0 []
+[debug] [SQL Get]: SELECT * FROM f2f_model WHERE id = ? [ 1 ]   
+[43828:0415/180617.724:ERROR:ffmpeg_common.cc(970)] Unsupported pixel format: -1
+[43828:0415/180617.726:ERROR:ffmpeg_common.cc(970)] Unsupported pixel format: -1
+[info]  video convert to h264 done
+[info]  audio split done
+[debug] ~ preprocessAndTran ~ param: {"format":"wav","reference_audio":"origin_audio/20260415180627102.wav","lang":"zh"}        
+[debug] ~ train ~ res: { code: -1, msg: 'asr failed' }
+[error] ~ addModel ~ error: Error: 语音模型训练失败，未生成可用 的 voiceId
+    at addModel (D:\Code\Duix-Avatar\out\main\index.js:6211:13) 
+    at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+    at async WebContents.<anonymous> (node:electron/js2c/browser_init:2:87023)
+Error occurred in handler for 'model/addModel': Error: 语音模型 训练失败，未生成可用的 voiceId
+    at addModel (D:\Code\Duix-Avatar\out\main\index.js:6211:13) 
+    at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+    at async WebContents.<anonymous> (node:electron/js2c/browser_init:2:87023)
