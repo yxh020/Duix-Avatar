@@ -2,6 +2,24 @@
   <div class="works-content-box">
     <!-- form -->
     <div class="form-box">
+      <div class="toolbar-actions">
+        <span class="selected-count">已选 {{ selectedIds.length }} 项</span>
+        <t-checkbox
+          :checked="isAllSelected"
+          :indeterminate="isIndeterminate"
+          @change="toggleSelectAll"
+        >
+          全选
+        </t-checkbox>
+        <t-button
+          theme="primary"
+          variant="outline"
+          :disabled="selectedIds.length === 0"
+          @click="showBatchDeleteDialog"
+        >
+          批量删除
+        </t-button>
+      </div>
       <t-input
         v-model="state.formData.name"
         class="form-input"
@@ -12,6 +30,10 @@
           <img src="../../../assets/images/home/select.svg" />
         </template>
       </t-input>
+      <t-button class="refresh-button" theme="default" variant="outline" @click="refreshList">
+        <img src="../../../assets/images/home/go.svg" />
+        <span>刷新</span>
+      </t-button>
     </div>
     <div class="works-content-table">
       <div v-if="home.homeState.videoNum === 0" class="empty">
@@ -25,7 +47,12 @@
         </div>
       </div>
       <div v-else class="table-list">
-        <div v-for="(item, index) in state.worksList" :key="index + 'worksList'" class="li">
+        <div v-for="(item, index) in state.worksList" :key="item.id || index" class="li">
+          <div class="select-box" @click.stop="toggleSelect(item.id)">
+            <div class="select-icon" :class="{ checked: selectedIds.includes(item.id) }">
+              <CheckIcon v-if="selectedIds.includes(item.id)" />
+            </div>
+          </div>
           <!-- 视频上部分内容 -->
           <div class="img-video comme">
             <div class="img-video-content">
@@ -33,9 +60,8 @@
                 {{ item.duration + '' ? millisecondsToTime(item.duration * 1000) : '00:00' }}
               </div>
               <div v-if="item.status === 'success'" class="works-video">
-                 <video :src="localUrl.addFileProtocol(item.file_path)"></video>
+                <img :src="getVideoThumbnail(item) || occupationMap" alt="video thumbnail" />
               </div>
-              <!--  <video class="works-video" src="../../../assets/images/home/aa.mp4"></video> -->
               <img
                 v-if="item.status === 'failed' || item.status === 'pending' || item.status === 'draft'"
                 class="works-img"
@@ -106,7 +132,7 @@
               <div class="progress-text">{{ item.progress }}%</div>
               <div class="production-text">{{ $t('common.videoList.underProduction') }}</div>
             </div>
-            <div class="delete-video" @click.native="delVideo(item.id)">
+            <div class="delete-video" @click="delVideo(item.id)">
               <DeleteIcon style="color: #fff; font-size: 12px" />
             </div>
           </div>
@@ -152,11 +178,12 @@
       @cancel="cancelFun"
     />
     <DeleteDialog ref="deleteDialogRef" @ok="okDelete" />
+    <DeleteDialog ref="batchDeleteDialogRef" @ok="okBatchDelete" />
   </div>
 </template>
 <script setup>
-import { reactive, onMounted, onBeforeUnmount, ref } from 'vue'
-import { DeleteIcon } from 'tdesign-icons-vue-next'
+import { reactive, onMounted, onBeforeUnmount, ref, computed } from 'vue'
+import { DeleteIcon, CheckIcon } from 'tdesign-icons-vue-next'
 import { videoPage, exportVideo, removeVideo } from '@renderer/api/index.js'
 import { formatDate, millisecondsToTime } from '@renderer/utils/index.js'
 import VideoDialog from '@renderer/views/home/components/videoDialog.vue'
@@ -170,6 +197,7 @@ import zhConfig from 'tdesign-vue-next/es/locale/zh_CN'
 import { useI18n } from 'vue-i18n'
 const { locale, t } = useI18n()
 import { localUrl } from '@renderer/utils'
+import occupationMap from '../../../assets/images/home/occupationMap.svg'
 
 import merge from 'lodash/merge'
 const globalEn = merge(enConfig, {
@@ -181,12 +209,15 @@ const globalZh = merge(zhConfig, {
 const router = useRouter()
 const home = useHomeStore()
 const deleteDialogRef = ref(null)
+const batchDeleteDialogRef = ref(null)
+const selectedIds = ref([])
+const thumbnailCache = reactive({})
 const state = reactive({
   interval: null,
   current: 1,
   videoUrl: '',
   showVideoDialog: false,
-  pageSize: 10,
+  pageSize: 50,
   total: 0,
   delVideoId: '',
   worksList: [],
@@ -199,7 +230,7 @@ onMounted(() => {
   videoPageAJax()
   state.interval = setInterval(() => {
     videoPageAJax()
-  }, 3000)
+  }, 10000)
 })
 onBeforeUnmount(() => {
   clearInterval(state.interval)
@@ -210,9 +241,169 @@ const cancelFun = () => {
 const linkRoute = () => {
   router.push('/video/edit')
 }
+const isAllSelected = computed(() => {
+  const selectableIds = state.worksList.map((item) => item.id).filter(Boolean)
+  return selectableIds.length > 0 && selectableIds.every((id) => selectedIds.value.includes(id))
+})
+const isIndeterminate = computed(() => {
+  const selectableIds = state.worksList.map((item) => item.id).filter(Boolean)
+  const selectedCount = selectableIds.filter((id) => selectedIds.value.includes(id)).length
+  return selectedCount > 0 && selectedCount < selectableIds.length
+})
+const refreshList = () => {
+  videoPageAJax()
+}
+const toggleSelect = (id) => {
+  if (!id) return
+  if (selectedIds.value.includes(id)) {
+    selectedIds.value = selectedIds.value.filter((itemId) => itemId !== id)
+    return
+  }
+  selectedIds.value.push(id)
+}
+const toggleSelectAll = (checked) => {
+  const checkedValue = checked?.target ? checked.target.checked : checked
+  const selectableIds = state.worksList.map((item) => item.id).filter(Boolean)
+  selectedIds.value = checkedValue ? [...selectableIds] : []
+}
+const showBatchDeleteDialog = () => {
+  if (selectedIds.value.length === 0) return
+  batchDeleteDialogRef.value?.showDialogFun()
+}
 const previewVideo = (url) => {
   state.showVideoDialog = true
   state.videoUrl = url
+}
+const generateVideoThumbnail = (videoUrl, itemId) => {
+  console.log('[worksList] start generate thumbnail', { itemId, videoUrl })
+  return new Promise((resolve, reject) => {
+    const video = document.createElement('video')
+    video.crossOrigin = 'anonymous'
+    video.preload = 'auto'
+    video.muted = true
+    video.playsInline = true
+    video.src = videoUrl
+
+    const cleanup = () => {
+      video.removeAttribute('src')
+      video.load()
+    }
+
+    const captureFrame = () => {
+      const canvas = document.createElement('canvas')
+      const sourceWidth = video.videoWidth || 320
+      const sourceHeight = video.videoHeight || 180
+      canvas.width = sourceWidth
+      canvas.height = sourceHeight
+      const context = canvas.getContext('2d')
+      if (!context) {
+        console.warn('[worksList] canvas context unavailable', { itemId })
+        cleanup()
+        reject(new Error('canvas context unavailable'))
+        return
+      }
+      context.drawImage(video, 0, 0, sourceWidth, sourceHeight)
+      const dataUrl = canvas.toDataURL('image/jpeg', 0.9)
+      console.log('[worksList] thumbnail generated', {
+        itemId,
+        dataUrlPrefix: dataUrl.slice(0, 32),
+        currentTime: video.currentTime,
+        width: sourceWidth,
+        height: sourceHeight
+      })
+      cleanup()
+      resolve(dataUrl)
+    }
+
+    video.addEventListener(
+      'loadedmetadata',
+      () => {
+        console.log('[worksList] video metadata loaded', {
+          itemId,
+          duration: video.duration,
+          width: video.videoWidth,
+          height: video.videoHeight
+        })
+      },
+      { once: true }
+    )
+
+    video.addEventListener(
+      'seeked',
+      () => {
+        console.log('[worksList] video seeked', {
+          itemId,
+          currentTime: video.currentTime,
+          duration: video.duration
+        })
+        captureFrame()
+      },
+      { once: true }
+    )
+
+    video.addEventListener(
+      'loadeddata',
+      () => {
+        const duration = Number.isFinite(video.duration) ? video.duration : 0
+        const targetTime = Math.min(Math.max(duration * 0.15, 0.5), 3)
+        console.log('[worksList] video loadeddata, seeking frame', {
+          itemId,
+          duration,
+          targetTime
+        })
+        if (!duration || duration <= targetTime) {
+          captureFrame()
+          return
+        }
+        try {
+          video.currentTime = targetTime
+        } catch (error) {
+          console.warn('[worksList] seek failed, fallback to current frame', { itemId, error })
+          captureFrame()
+        }
+      },
+      { once: true }
+    )
+
+    video.addEventListener(
+      'error',
+      (event) => {
+        console.error('[worksList] video load error', { itemId, videoUrl, event })
+        cleanup()
+        reject(event)
+      },
+      { once: true }
+    )
+  })
+}
+const getVideoThumbnail = (item) => {
+  return item.cover_path ? localUrl.addFileProtocol(item.cover_path) : thumbnailCache[item.id] || ''
+}
+const cacheVideoThumbnail = async (item) => {
+  if (!item?.id || thumbnailCache[item.id] || !item.file_path) {
+    console.log('[worksList] skip cache thumbnail', {
+      itemId: item?.id,
+      hasCache: Boolean(item?.id && thumbnailCache[item.id]),
+      hasFilePath: Boolean(item?.file_path)
+    })
+    return
+  }
+  try {
+    const url = localUrl.addFileProtocol(item.file_path)
+    console.log('[worksList] cache thumbnail begin', { itemId: item.id, url })
+    thumbnailCache[item.id] = await generateVideoThumbnail(url, item.id)
+    console.log('[worksList] cache thumbnail success', { itemId: item.id, cached: Boolean(thumbnailCache[item.id]) })
+  } catch (error) {
+    console.error('[worksList] generate thumbnail failed', { itemId: item?.id, error })
+  }
+}
+const batchGenerateThumbnails = async (list) => {
+  const targets = list.filter((item) => item.status === 'success')
+  console.log('[worksList] batchGenerateThumbnails', {
+    total: list.length,
+    targets: targets.map((item) => ({ id: item.id, file_path: item.file_path, cover_path: item.cover_path }))
+  })
+  await Promise.allSettled(targets.map((item) => cacheVideoThumbnail(item)))
 }
 const videoPageAJax = async () => {
   try {
@@ -225,7 +416,24 @@ const videoPageAJax = async () => {
       const { total, list } = res
       if (list) {
         state.total = total
-        state.worksList = list
+        state.worksList = list.map((item) => ({
+          ...item,
+          thumbnailUrl: item.cover_path ? localUrl.addFileProtocol(item.cover_path) : ''
+        }))
+        console.log('[worksList] videoPageAJax response', {
+          total,
+          current: state.current,
+          pageSize: state.pageSize,
+          list: state.worksList.map((item) => ({
+            id: item.id,
+            status: item.status,
+            file_path: item.file_path,
+            cover_path: item.cover_path,
+            thumbnailUrl: item.thumbnailUrl
+          }))
+        })
+        selectedIds.value = selectedIds.value.filter((id) => list.some((item) => item.id === id))
+        batchGenerateThumbnails(list)
       }
     }
   } catch (error) {
@@ -244,11 +452,13 @@ const onKeypressFun = () => {
 }
 const onPageSizeChange = (size) => {
   state.pageSize = size
+  selectedIds.value = []
   videoPageAJax()
 }
 
 const onCurrentChange = (index) => {
-  state.page = index
+  state.current = index
+  selectedIds.value = []
   videoPageAJax()
 }
 
@@ -271,6 +481,19 @@ const okDelete = () => {
       console.error('Error:', error)
     })
 }
+const okBatchDelete = async () => {
+  const deleteCount = selectedIds.value.length
+  try {
+    await Promise.all(selectedIds.value.map((id) => removeVideo(id)))
+    selectedIds.value = []
+    await videoPageAJax()
+    MessagePlugin.success(t('common.message.deleteSuccessText'))
+    home.setVideoNum(Math.max(home.homeState.videoNum - deleteCount, 0))
+  } catch (error) {
+    MessagePlugin.error(t('common.message.deleteErrorText'))
+    console.error('Error:', error)
+  }
+}
 const downloadVideo = async (video) => {
   const fileExtension = video.file_path?.split('.')?.pop()
   const saveName = `${video.name}.${fileExtension}`
@@ -291,10 +514,23 @@ const downloadVideo = async (video) => {
 .works-content-box {
   .form-box {
     display: flex;
+    align-items: center;
+    gap: 12px;
     margin-bottom: 24px;
     position: absolute;
     top: -50px;
     right: 0;
+
+    .toolbar-actions {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+
+      .selected-count {
+        font-size: 12px;
+        color: #666;
+      }
+    }
 
     .form-input {
       width: 216px;
@@ -331,9 +567,11 @@ const downloadVideo = async (video) => {
     }
     .table-list {
       display: grid;
-      padding-bottom: 40px;
-      grid-template-columns: repeat(5, 1fr);
-      gap: 16px;
+      padding: 0 8px 40px;
+      box-sizing: border-box;
+      grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+      justify-content: start;
+      gap: 12px;
       color: #ccc;
 
       .li:hover {
@@ -418,6 +656,33 @@ const downloadVideo = async (video) => {
         }
       }
 
+      .select-box {
+        position: absolute;
+        top: 8px;
+        right: 8px;
+        z-index: 10;
+        width: 20px;
+        height: 20px;
+        cursor: pointer;
+
+        .select-icon {
+          width: 20px;
+          height: 20px;
+          border-radius: 4px;
+          box-sizing: border-box;
+          background: rgba(255, 255, 255, 0.95);
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          color: #fff;
+
+          &.checked {
+            background: #434af9;
+            border-color: #434af9;
+          }
+        }
+      }
+
       .delete-video {
           width: 20px;
           height: 20px;
@@ -434,9 +699,11 @@ const downloadVideo = async (video) => {
 
       .li {
         transition: all 0.3s ease;
-        aspect-ratio: 1 / 1.6;
+        width: 100%;
+        height: 320px;
         border-radius: 8px;
         position: relative;
+        overflow: hidden;
         .download-preview {
           display: none;
         }
@@ -447,11 +714,12 @@ const downloadVideo = async (video) => {
           width: 100%;
           left: 0;
           border-radius: 8px 8px 0 0;
-          height: calc(100% - 64px);
+          height: calc(100% - 54px);
         }
 
         .img-video {
           z-index: 1;
+          height: calc(100% - 64px);
 
           .img-video-content {
             position: relative;
@@ -462,6 +730,8 @@ const downloadVideo = async (video) => {
 
             .works-img {
               width: 100%;
+              height: 100%;
+              object-fit: cover;
               border-radius: 8px 8px 0 0;
               background-color: #fff;
             }
@@ -476,8 +746,10 @@ const downloadVideo = async (video) => {
               display: flex;
               align-items: center;
               top: 0;
-              video {
+              img {
                 width: 100%;
+                height: 100%;
+                object-fit: cover;
               }
             }
 
@@ -532,10 +804,11 @@ const downloadVideo = async (video) => {
         }
 
         .bottom-text {
-          height: 64px;
+          height: 54px;
           position: absolute;
           bottom: 0;
           padding: 4px 8px 8px 8px;
+          box-sizing: border-box;
           left: 0;
           width: 100%;
           background: #ffffff;

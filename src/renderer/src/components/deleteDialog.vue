@@ -45,7 +45,8 @@ const okFun = () => {
   emit('ok')
 }
 defineExpose({
-  showDialogFun
+  showDialogFun,
+  cancelUpload
 })
 </script>
 <style lang="less" scoped>
