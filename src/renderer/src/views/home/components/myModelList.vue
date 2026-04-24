@@ -1,6 +1,11 @@
 <template>
   <div class="model-content-box">
     <div class="form-box">
+      <div class="toolbar-actions">
+        <t-button theme="warning" variant="outline" @click="handleRemoveTempModels">
+          删除模板模特
+        </t-button>
+      </div>
       <t-input
         v-model="state.formData.name"
         class="form-input"
@@ -101,12 +106,13 @@
       @cancel="cancelFun"
     />
     <DeleteDialog ref="deleteDialogRef" @ok="okDelete" />
+    <DeleteDialog ref="removeTempDialogRef" @ok="okRemoveTempModels" />
   </div>
 </template>
 <script setup>
 import { reactive, onMounted, ref } from 'vue'
 import { DeleteIcon } from 'tdesign-icons-vue-next'
-import { modelPage, removeModel } from '@renderer/api/index.js'
+import { modelPage, removeModel, removeTempModels, countModel } from '@renderer/api/index.js'
 import { formatDate } from '@renderer/utils/index.js'
 import { useRouter } from 'vue-router'
 import VideoDialog from '@renderer/views/home/components/videoDialog.vue'
@@ -130,6 +136,7 @@ const globalZh = merge(zhConfig, {
 const home = useHomeStore()
 const router = useRouter()
 const deleteDialogRef = ref(null)
+const removeTempDialogRef = ref(null)
 const state = reactive({
   current: 1,
   pageSize: 10,
@@ -195,6 +202,21 @@ const okDelete = () => {
       MessagePlugin.error(t('common.message.deleteErrorText'))
       console.error('Error:', error)
     })
+}
+const handleRemoveTempModels = () => {
+  removeTempDialogRef.value?.showDialogFun()
+}
+const okRemoveTempModels = async () => {
+  try {
+    const removedCount = await removeTempModels()
+    await modelPageAJax()
+    const total = await countModel()
+    home.setModelNum(total || 0)
+    MessagePlugin.success(`已删除 ${removedCount || 0} 个模板模特`)
+  } catch (error) {
+    MessagePlugin.error(error?.message || '删除模板模特失败')
+    console.error('Error:', error)
+  }
 }
 const delModel = (id) => {
   if (deleteDialogRef.value && deleteDialogRef.value.showDialogFun) {

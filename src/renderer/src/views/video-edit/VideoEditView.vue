@@ -88,7 +88,12 @@ const action = {
       }
 
       if (state.select.model.id) {
-        await action.initModelDetail(state.select.model.id)
+        const targetModel = state.select.modelList.find((item) => item.id === state.select.model.id)
+        if (targetModel) {
+          state.select.model = targetModel
+        } else {
+          await action.initModelDetail(state.select.model.id)
+        }
       }
 
       // 选中的模特滚动到中间

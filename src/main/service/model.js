@@ -3,7 +3,7 @@ import fs from 'fs'
 import path from 'path'
 import dayjs from 'dayjs'
 import { isEmpty } from 'lodash'
-import { insert, selectPage, count, selectByID, remove as deleteModel } from '../dao/f2f-model.js'
+import { insert, selectPage, count, selectByID, remove as deleteModel, selectByNamePrefix, removeByNamePrefix } from '../dao/f2f-model.js'
 import { train as trainVoice } from './voice.js'
 import { assetPath } from '../config/config.js'
 import log from '../logger.js'
@@ -104,7 +104,29 @@ function countModel(name = '') {
   return count(name)
 }
 
+function removeTempModels() {
+  const tempModels = selectByNamePrefix('__TMP__')
+  tempModels.forEach((model) => {
+    const videoPath = path.join(assetPath.model, model.video_path || '')
+    if (!isEmpty(model.video_path) && fs.existsSync(videoPath)) {
+      fs.unlinkSync(videoPath)
+    }
+
+    const audioPath = path.join(assetPath.ttsRoot, model.audio_path || '')
+    if (!isEmpty(model.audio_path) && fs.existsSync(audioPath)) {
+      fs.unlinkSync(audioPath)
+    }
+
+    deleteModel(model.id)
+  })
+  removeByNamePrefix('__TMP__')
+  return tempModels.length
+}
+
 export function init() {
+  ipcMain.handle(MODEL_NAME + '/removeTempModels', () => {
+    return removeTempModels()
+  })
   ipcMain.handle(MODEL_NAME + '/addModel', (event, ...args) => {
     return addModel(...args)
   })

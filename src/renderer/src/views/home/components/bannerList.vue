@@ -11,15 +11,16 @@
         <div class="text" :style="locale === 'en' ?  'font-size: 13px;' : ''">{{$t('common.banner0.buttonText') }}</div>
       </div>
     </div>
-    <div class="banner-right" @click="action.handleCreateModel">
+    <div class="banner-right">
       <div class="title-box" :style="locale === 'zh' ? '' : 'padding: 12px 0px 0px 32px;'">
         <div class="h1">{{$t('common.banner1.buttonText') }}</div>
         <div class="text" :style="locale === 'zh' ? '' : ' width: 60%;'">{{$t('common.banner1.subTitle') }}</div>
-        <div class="link">
-          <div class="link-text" :style="locale === 'en' ?  'font-size: 12px;' : ''">{{$t('common.banner1.buttonText') }}</div>
+        <div class="link" @click="action.handleQuickCreateModel">
+          <div class="link-text" >批量合成</div>
           <img src="../../../assets/images/home/go.svg" />
         </div>
       </div>
+      <!-- <div class="quick-entry" :style="locale === 'en' ?  'font-size: 12px;' : ''" @click="action.handleCreateModel">{{$t('common.banner1.buttonText') }}</div> -->
     </div>
   </div>
 </template>
@@ -36,10 +37,12 @@ const action = {
   },
   async handleCreateModel() {
     const { isSubmitOK } = await createModel();
-    // 提交成功
     if (isSubmitOK) {
       emit("submitOK");
     }
+  },
+  async handleQuickCreateModel() {
+    router.push("/model/quick-create");
   },
 };
 </script>
@@ -48,12 +51,15 @@ const action = {
   display: flex;
   width: 100%;
   margin-bottom: 18px;
+  justify-content: center;
+  gap: 16px;
 
   .banner-left {
-    width: 65%;
+    width: 58%;
     border-radius: 8px;
     display: flex;
     height: 160px;
+    cursor: pointer;
     background-image: url("@renderer/assets/images/home/banner01.svg");
     background-size: cover;
     background-position: center;
@@ -116,16 +122,16 @@ const action = {
   }
 
   .banner-right {
-    width: calc(35% - 20px);
+    width: 38%;
     border-radius: 8px;
-    margin-left: auto;
+    margin-left: 0;
     background-repeat: no-repeat;
     height: 160px;
+    position: relative;
     /* 固定高度 */
     background-image: url("@renderer/assets/images/home/banner02.svg");
     background-size: cover;
     background-position: center;
-    cursor: pointer;
 
     .title-box {
       padding: 32px 0px 0px 32px;
@@ -181,6 +187,25 @@ const action = {
         }
       }
     }
+  }
+
+  .quick-entry {
+    width: 140px;
+    height: 32px;
+    position: absolute;
+    left: 50%;
+    bottom: 18px;
+    transform: translateX(-50%);
+    background: rgba(255, 255, 255, 0.96);
+    border-radius: 27px;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    cursor: pointer;
+    color: #2f80ed;
+    font-size: 13px;
+    font-weight: 700;
+    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.12);
   }
 }
 </style>

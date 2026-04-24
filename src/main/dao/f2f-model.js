@@ -39,3 +39,15 @@ export function remove(id) {
   const db = connect()
   db.prepare(`DELETE FROM f2f_model WHERE id = ?`).run(id)
 }
+
+export function selectByNamePrefix(prefix) {
+  const db = connect()
+  return db
+    .prepare(`SELECT * FROM f2f_model WHERE name like '${prefix}%' ORDER BY created_at DESC`)
+    .all()
+}
+
+export function removeByNamePrefix(prefix) {
+  const db = connect()
+  db.prepare(`DELETE FROM f2f_model WHERE name like '${prefix}%'`).run()
+}

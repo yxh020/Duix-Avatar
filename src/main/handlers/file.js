@@ -8,15 +8,15 @@ export default {
   // 选择文件
   async selectFile(app, filters = {}) {
     const result = await dialog.showOpenDialog({
-      properties: ['openFile'], // 也可以用 openDirectory 选择文件夹
+      properties: ['openFile', ...(filters.multiSelections ? ['multiSelections'] : [])],
       filters: [
         filters,
         { name: 'All Files', extensions: ['*'] }
-      ].filter(item => Object.keys(item).length)
+      ].filter(item => Object.keys(item).length && !item.multiSelections)
     })
 
     if (!result.canceled) {
-      return result.filePaths[0]
+      return filters.multiSelections ? result.filePaths : result.filePaths[0]
     }
   },
   async saveFile(app, defaultPath = "") {
