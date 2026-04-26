@@ -19,6 +19,15 @@ export default {
       return filters.multiSelections ? result.filePaths : result.filePaths[0]
     }
   },
+  async selectFolder(app) {
+    const result = await dialog.showOpenDialog({
+      properties: ['openDirectory', 'createDirectory']
+    })
+
+    if (!result.canceled) {
+      return result.filePaths[0]
+    }
+  },
   async saveFile(app, defaultPath = "") {
     const result = await dialog.showSaveDialog({
       defaultPath

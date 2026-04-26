@@ -13,6 +13,9 @@ export const Client = {
     },
     selectAudio: async (multiSelections = false) => {
       return Client.file.selectFile({ name: 'Audios', extensions: ['mp3', 'wav', 'flac', 'm4a'], multiSelections })
+    },
+    selectFolder: async () => {
+      return window.client.file.selectFolder()
     }
   },
   app: {

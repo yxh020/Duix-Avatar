@@ -19,6 +19,13 @@
         >
           批量删除
         </t-button>
+        <t-button
+          theme="primary"
+          :disabled="selectedIds.length === 0"
+          @click="downloadSelectedVideos"
+        >
+          批量下载
+        </t-button>
       </div>
       <t-input
         v-model="state.formData.name"
@@ -497,16 +504,33 @@ const okBatchDelete = async () => {
 const downloadVideo = async (video) => {
   const fileExtension = video.file_path?.split('.')?.pop()
   const saveName = `${video.name}.${fileExtension}`
-  // exportVideo
   try {
     const savePath = await Client.file.saveFile(saveName)
-    try {
-      const res = await exportVideo(video.id, savePath)
-    } catch (error) {
-      console.log(error)
-    }
+    await exportVideo(video.id, savePath)
   } catch (error) {
     console.log(error)
+  }
+}
+const downloadSelectedVideos = async () => {
+  if (!selectedIds.value.length) return
+  const selectedVideos = state.worksList.filter((item) => selectedIds.value.includes(item.id))
+  if (!selectedVideos.length) return
+
+  try {
+    const folderPath = await Client.file.selectFolder()
+    if (!folderPath) return
+
+    for (const video of selectedVideos) {
+      const fileExtension = video.file_path?.split('.')?.pop() || 'mp4'
+      const saveName = `${video.name}.${fileExtension}`
+      const savePath = `${folderPath.replace(/[\\/]$/, '')}\\${saveName}`
+      await exportVideo(video.id, savePath)
+    }
+
+    MessagePlugin.success('批量下载完成')
+  } catch (error) {
+    console.error('Batch download failed:', error)
+    MessagePlugin.error('批量下载失败')
   }
 }
 </script>

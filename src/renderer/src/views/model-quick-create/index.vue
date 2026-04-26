@@ -26,8 +26,13 @@
           </div>
           <div class="file-list" v-if="state.videos.length">
             <div v-for="(item, index) in state.videos" :key="item.path" class="file-item">
-              <div class="index">{{ index + 1 }}</div>
-              <div class="name">{{ item.name }}</div>
+              <div class="file-item__main">
+                <div class="index">{{ index + 1 }}</div>
+                <div class="name">{{ item.name }}</div>
+              </div>
+              <t-button class="delete-btn" theme="default" variant="text" size="small" @click="removeVideo(index)">
+                删除
+              </t-button>
             </div>
           </div>
           <div v-else class="empty block-empty">点击选择多个视频文件</div>
@@ -45,8 +50,13 @@
           </div>
           <div class="file-list" v-if="state.audios.length">
             <div v-for="(item, index) in state.audios" :key="item.path" class="file-item">
-              <div class="index">{{ index + 1 }}</div>
-              <div class="name">{{ item.name }}</div>
+              <div class="file-item__main">
+                <div class="index">{{ index + 1 }}</div>
+                <div class="name">{{ item.name }}</div>
+              </div>
+              <t-button class="delete-btn" theme="default" variant="text" size="small" @click="removeAudio(index)">
+                删除
+              </t-button>
             </div>
           </div>
           <div v-else class="empty block-empty">点击选择多个音频文件</div>
@@ -126,6 +136,14 @@ const clearVideos = () => {
 
 const clearAudios = () => {
   state.audios = []
+}
+
+const removeVideo = (index) => {
+  state.videos.splice(index, 1)
+}
+
+const removeAudio = (index) => {
+  state.audios.splice(index, 1)
 }
 
 const findCreatedModel = async (name) => {
@@ -263,9 +281,11 @@ const submit = async () => {
 
   .list-actions { display: flex; gap: 12px; margin-bottom: 12px; }
   .file-list { padding: 12px; display: grid; gap: 8px; max-height: 220px; overflow: auto; }
-  .file-item { display: flex; align-items: center; gap: 12px; padding: 10px 12px; border-radius: 6px; background: #ffffff; border: 1px solid #edf0f2; }
+  .file-item { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 12px; border-radius: 6px; background: #ffffff; border: 1px solid #edf0f2; }
+  .file-item__main { display: flex; align-items: center; gap: 12px; min-width: 0; flex: 1; }
   .file-item .index { width: 24px; height: 24px; border-radius: 50%; background: #434af9; color: #fff; display:flex; align-items:center; justify-content:center; font-size: 12px; flex:none; }
   .file-item .name { flex: 1; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+  .delete-btn { flex: none; color: #ef4444; }
 
   .actions { display: flex; justify-content: flex-end; gap: 12px; margin-top: 24px; flex: none; }
   .result { margin-top: 24px; padding-top: 16px; border-top: 1px solid #e5e7eb; flex: 1; overflow: auto; }
