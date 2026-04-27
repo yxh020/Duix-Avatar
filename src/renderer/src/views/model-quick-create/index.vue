@@ -190,29 +190,42 @@ const submit = async () => {
   state.loading = true
   state.interrupted = false
   state.results = []
+  let successCount = 0
+  let failCount = 0
+
   try {
     for (let i = 0; i < state.videos.length; i += 1) {
       if (state.interrupted) {
         MessagePlugin.warning('批量任务已中断')
         break
       }
+
       const currentVideo = state.videos[i]
       const currentAudio = state.audios[i % state.audios.length]
+      const resultIndex = state.results.length
+
       state.results.push({
         videoPath: currentVideo.path,
         name: `${currentVideo.name} / ${currentAudio.name}`,
         status: '处理中'
       })
-      const result = await submitOne(currentVideo.path, currentAudio.path, i)
-      state.results[i].status = result.status
-      MessagePlugin.success(`第 ${i + 1} 个任务已提交`)
+
+      try {
+        const result = await submitOne(currentVideo.path, currentAudio.path, i)
+        state.results[resultIndex].status = result.status
+        successCount += 1
+        MessagePlugin.success(`第 ${i + 1} 个任务已提交`)
+      } catch (error) {
+        console.error(error)
+        state.results[resultIndex].status = '失败'
+        failCount += 1
+        MessagePlugin.error(error?.message || `第 ${i + 1} 个任务失败`)
+      }
     }
+
     if (!state.interrupted) {
-      MessagePlugin.success('批量合成任务已全部提交')
+      MessagePlugin.success(`批量合成任务已完成，成功 ${successCount} 个，失败 ${failCount} 个`)
     }
-  } catch (error) {
-    console.error(error)
-    MessagePlugin.error(error?.message || '批量合成失败')
   } finally {
     state.loading = false
   }
