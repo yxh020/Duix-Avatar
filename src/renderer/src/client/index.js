@@ -16,6 +16,9 @@ export const Client = {
     },
     selectFolder: async () => {
       return window.client.file.selectFolder()
+    },
+    deleteFile: async (filePath) => {
+      return window.client.file.deleteFile(filePath)
     }
   },
   app: {

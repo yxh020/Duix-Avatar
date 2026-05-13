@@ -275,6 +275,7 @@ const tabClick = (index) => {
     position: absolute;
     top: -50px;
     right: 0;
+    gap: 12px;
     .form-input {
       width: 216px;
       margin-left: auto;

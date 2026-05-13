@@ -15,7 +15,7 @@
         </div>
 
         <div class="form-item">
-          <span class="label">原始视频（可多选）</span>
+          <span class="label">原始视频（已选 {{ state.videos.length }} 个）</span>
           <div class="list-actions">
             <t-button theme="default" variant="outline" :disabled="loading" @click="pickVideos">
               选择视频
@@ -24,13 +24,22 @@
               清空
             </t-button>
           </div>
+          <div class="option-row">
+            <t-switch v-model="state.autoDelete" :disabled="state.loading" />
+            <span class="option-label">任务完成后自动删除原视频</span>
+          </div>
           <div class="file-list" v-if="state.videos.length">
             <div v-for="(item, index) in state.videos" :key="item.path" class="file-item">
               <div class="file-item__main">
                 <div class="index">{{ index + 1 }}</div>
-                <div class="name">{{ item.name }}</div>
+                <div class="file-info">
+                  <div class="name">{{ item.name }}</div>
+                </div>
               </div>
-              <t-button class="delete-btn" theme="default" variant="text" size="small" @click="removeVideo(index)">
+              <div class="file-item__status">
+                <div class="status" :class="item.statusClass">{{ item.statusText }}</div>
+              </div>
+              <t-button v-if="!state.loading" class="delete-btn" theme="default" variant="text" size="small" @click="removeVideo(index)">
                 删除
               </t-button>
             </div>
@@ -54,7 +63,7 @@
                 <div class="index">{{ index + 1 }}</div>
                 <div class="name">{{ item.name }}</div>
               </div>
-              <t-button class="delete-btn" theme="default" variant="text" size="small" @click="removeAudio(index)">
+              <t-button v-if="!state.loading" class="delete-btn" theme="default" variant="text" size="small" @click="removeAudio(index)">
                 删除
               </t-button>
             </div>
@@ -69,14 +78,6 @@
           <t-button theme="primary" :loading="loading" :disabled="!canSubmit" @click="submit">
             开始批量合成
           </t-button>
-        </div>
-
-        <div class="result" v-if="state.results.length">
-          <div class="result-title">任务结果</div>
-          <div v-for="item in state.results" :key="item.videoPath + item.name" class="result-item">
-            <span class="result-name">{{ item.name }}</span>
-            <span class="result-status">{{ item.status }}</span>
-          </div>
         </div>
       </div>
     </t-content>
@@ -95,9 +96,9 @@ const tempPrefix = `__TMP__${new Date().toISOString().replace(/[-:TZ.]/g, '').sl
 const state = reactive({
   loading: false,
   interrupted: false,
+  autoDelete: true,
   videos: [],
-  audios: [],
-  results: []
+  audios: []
 })
 
 const canSubmit = computed(() => Boolean(state.videos.length && state.audios.length && !state.loading))
@@ -116,7 +117,9 @@ const pickVideos = async () => {
   const paths = Array.isArray(filePaths) ? filePaths : [filePaths]
   state.videos = paths.map((path, index) => ({
     path,
-    name: getFileName(path) || `video_${index + 1}`
+    name: getFileName(path) || `video_${index + 1}`,
+    statusText: '待处理',
+    statusClass: 'status--pending'
   }))
 }
 
@@ -144,6 +147,13 @@ const removeVideo = (index) => {
 
 const removeAudio = (index) => {
   state.audios.splice(index, 1)
+}
+
+const updateVideoStatus = (index, statusText, statusClass = '') => {
+  const target = state.videos[index]
+  if (!target) return
+  target.statusText = statusText
+  target.statusClass = statusClass
 }
 
 const findCreatedModel = async (name) => {
@@ -179,6 +189,16 @@ const submitOne = async (videoPath, audioPath, index) => {
   return { name: getFileName(videoPath), status: '已提交' }
 }
 
+const deleteOriginalVideo = async (videoPath, index) => {
+  try {
+    await Client.file.deleteFile(videoPath)
+    updateVideoStatus(index, `${state.videos[index]?.statusText || '已提交'} · 原视频已删除`, 'status--success')
+  } catch (error) {
+    console.error(error)
+    updateVideoStatus(index, `${state.videos[index]?.statusText || '已提交'} · 原视频删除失败`, 'status--warning')
+  }
+}
+
 const interrupt = () => {
   state.interrupted = true
   state.loading = false
@@ -189,7 +209,12 @@ const submit = async () => {
   if (!canSubmit.value) return
   state.loading = true
   state.interrupted = false
-  state.results = []
+  state.videos.forEach((video) => {
+    if (video.statusClass !== 'status--success') {
+      video.statusText = '待处理'
+      video.statusClass = 'status--pending'
+    }
+  })
   let successCount = 0
   let failCount = 0
 
@@ -202,24 +227,22 @@ const submit = async () => {
 
       const currentVideo = state.videos[i]
       const currentAudio = state.audios[i % state.audios.length]
-      const resultIndex = state.results.length
-
-      state.results.push({
-        videoPath: currentVideo.path,
-        name: `${currentVideo.name} / ${currentAudio.name}`,
-        status: '处理中'
-      })
+      updateVideoStatus(i, `处理中：${currentAudio.name}`, 'status--processing')
 
       try {
         const result = await submitOne(currentVideo.path, currentAudio.path, i)
-        state.results[resultIndex].status = result.status
+        updateVideoStatus(i, result.status, 'status--success')
         successCount += 1
         MessagePlugin.success(`第 ${i + 1} 个任务已提交`)
       } catch (error) {
         console.error(error)
-        state.results[resultIndex].status = '失败'
+        updateVideoStatus(i, '失败', 'status--error')
         failCount += 1
         MessagePlugin.error(error?.message || `第 ${i + 1} 个任务失败`)
+      } finally {
+        if (state.autoDelete) {
+          await deleteOriginalVideo(currentVideo.path, i)
+        }
       }
     }
 
@@ -257,14 +280,38 @@ const submit = async () => {
     min-height: 0;
     padding: 0 24px 24px;
     background: #ffffff;
-    overflow: hidden;
+    overflow: auto;
+    scrollbar-width: thin;
+    scrollbar-color: rgba(99, 102, 241, 0.45) transparent;
+  }
+
+  .quick-create-content::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+
+  .quick-create-content::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  .quick-create-content::-webkit-scrollbar-thumb {
+    background: linear-gradient(180deg, rgba(99, 102, 241, 0.55), rgba(79, 70, 229, 0.75));
+    border-radius: 999px;
+    border: 2px solid rgba(255, 255, 255, 0.85);
+  }
+
+  .quick-create-content::-webkit-scrollbar-thumb:hover {
+    background: linear-gradient(180deg, rgba(99, 102, 241, 0.75), rgba(79, 70, 229, 0.95));
+  }
+
+  .quick-create-content::-webkit-scrollbar-corner {
+    background: transparent;
   }
 
   .panel {
     width: 100%;
     max-width: 1280px;
-    height: calc(100vh - 48px);
-    overflow: hidden;
+    min-height: calc(100vh - 48px);
     background: #ffffff;
     border: 1px solid #e8e8e8;
     border-radius: 12px;
@@ -293,18 +340,42 @@ const submit = async () => {
   .empty { color: #9ca3af; padding: 18px; width: 100%; min-height: 90px; display: flex; align-items: center; justify-content: center; border: none; }
 
   .list-actions { display: flex; gap: 12px; margin-bottom: 12px; }
-  .file-list { padding: 12px; display: grid; gap: 8px; max-height: 220px; overflow: auto; }
+  .option-row { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; color: #374151; font-size: 13px; }
+  .option-label { user-select: none; font-size: 12px; color: #666;}
+  .file-list { padding: 12px; display: grid; gap: 8px; max-height: 220px; overflow: auto; scrollbar-width: thin; scrollbar-color: rgba(99, 102, 241, 0.35) transparent; }
+  .file-list::-webkit-scrollbar { width: 8px; height: 8px; }
+  .file-list::-webkit-scrollbar-track { background: transparent; }
+  .file-list::-webkit-scrollbar-thumb {
+    background: linear-gradient(180deg, rgba(99, 102, 241, 0.35), rgba(79, 70, 229, 0.6));
+    border-radius: 999px;
+    border: 2px solid rgba(255, 255, 255, 0.85);
+  }
+  .file-list::-webkit-scrollbar-thumb:hover {
+    background: linear-gradient(180deg, rgba(99, 102, 241, 0.55), rgba(79, 70, 229, 0.8));
+  }
   .file-item { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 12px; border-radius: 6px; background: #ffffff; border: 1px solid #edf0f2; }
   .file-item__main { display: flex; align-items: center; gap: 12px; min-width: 0; flex: 1; }
+  .file-item__status { flex: none; min-width: 180px; display: flex; justify-content: flex-end; }
   .file-item .index { width: 24px; height: 24px; border-radius: 50%; background: #434af9; color: #fff; display:flex; align-items:center; justify-content:center; font-size: 12px; flex:none; }
-  .file-item .name { flex: 1; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+  .file-info { min-width: 0; flex: 1; }
+  .file-item .name { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+  .status {
+    display: inline-flex;
+    align-items: center;
+    padding: 2px 8px;
+    border-radius: 999px;
+    font-size: 12px;
+    line-height: 1.5;
+    border: 1px solid transparent;
+    flex: none;
+  }
+  .status--pending { color: #6b7280; background: #f3f4f6; border-color: #e5e7eb; }
+  .status--processing { color: #b45309; background: #fffbeb; border-color: #fde68a; }
+  .status--success { color: #15803d; background: #f0fdf4; border-color: #bbf7d0; }
+  .status--error { color: #b91c1c; background: #fef2f2; border-color: #fecaca; }
+  .status--warning { color: #b45309; background: #fffbeb; border-color: #fde68a; }
   .delete-btn { flex: none; color: #ef4444; }
 
   .actions { display: flex; justify-content: flex-end; gap: 12px; margin-top: 24px; flex: none; }
-  .result { margin-top: 24px; padding-top: 16px; border-top: 1px solid #e5e7eb; flex: 1; overflow: auto; }
-  .result-title { margin-bottom: 12px; font-weight: 600; color: #111827; }
-  .result-item { display:flex; justify-content: space-between; gap: 12px; padding: 8px 0; color: #374151; }
-  .result-name { overflow:hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .result-status { color: #16a34a; flex:none; }
 }
 </style>

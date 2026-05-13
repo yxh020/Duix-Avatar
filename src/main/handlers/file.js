@@ -1,6 +1,7 @@
 import { dialog } from "electron"
 import ffmpeg from 'fluent-ffmpeg'
 import path from 'path'
+import { unlink } from 'fs/promises'
 
 export default {
   name: 'file',
@@ -27,6 +28,15 @@ export default {
     if (!result.canceled) {
       return result.filePaths[0]
     }
+  },
+  async deleteFile(app, filePath = '') {
+    if (!filePath) {
+      throw new Error('filePath is required')
+    }
+
+    const normalizedPath = filePath.replace(/^file:\/\//, '')
+    await unlink(normalizedPath)
+    return true
   },
   async saveFile(app, defaultPath = "") {
     const result = await dialog.showSaveDialog({
