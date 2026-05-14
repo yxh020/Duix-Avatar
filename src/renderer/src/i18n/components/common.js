@@ -21,7 +21,7 @@ export const commonZh = {
   },
   input: {
     enterNamePlaceholder: '请输入数字模特名称',
-    enterKeywordPlaceholder: '请输入短视频名称/模特名称',
+    enterKeywordPlaceholder: '请输入作品名称',
     avatarNamePlaceholder: '请输入模特名称',
     searchAvatarNamePlaceholder: '搜索模特',
     videoContentTextPlaceholder: '请在这里输入您的文本内容，支持中英文'

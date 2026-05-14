@@ -96,7 +96,7 @@ const tempPrefix = `__TMP__${new Date().toISOString().replace(/[-:TZ.]/g, '').sl
 const state = reactive({
   loading: false,
   interrupted: false,
-  autoDelete: true,
+  autoDelete: false,
   videos: [],
   audios: []
 })
@@ -105,6 +105,15 @@ const canSubmit = computed(() => Boolean(state.videos.length && state.audios.len
 const loading = computed(() => state.loading)
 
 const getFileName = (path) => path.split(/[\\/]/).pop() || ''
+const getBaseName = (path) => {
+  const name = getFileName(path)
+  return name.replace(/\.[^.]+$/, '') || name
+}
+const formatTimeStamp = () => {
+  const d = new Date()
+  const pad = (n) => String(n).padStart(2, '0')
+  return `${d.getFullYear()}${pad(d.getMonth() + 1)}${pad(d.getDate())}-${pad(d.getHours())}${pad(d.getMinutes())}${pad(d.getSeconds())}`
+}
 const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms))
 
 const goHome = () => {
@@ -168,7 +177,9 @@ const findCreatedModel = async (name) => {
 
 const submitOne = async (videoPath, audioPath, index) => {
   const modelName = `${tempPrefix}_${index + 1}`
-  const videoName = `批量视频_${index + 1}_${Date.now()}`
+  // 详细命名：YYYYMMDD-HHmmss-素材名_钩子名（例：20260515-021723-已去水印素材_钩子马）
+  // 时间在前可按文件名排序，秒级唯一防止批量内撞名，素材_钩子顺序跟 UI 选择顺序对齐
+  const videoName = `${formatTimeStamp()}-${getBaseName(videoPath)}_${getBaseName(audioPath)}`
 
   const created = await addModel({ name: modelName, videoPath })
   if (!created) throw new Error(`第 ${index + 1} 个视频创建模特失败`)
@@ -234,20 +245,22 @@ const submit = async () => {
         updateVideoStatus(i, result.status, 'status--success')
         successCount += 1
         MessagePlugin.success(`第 ${i + 1} 个任务已提交`)
+        // 仅在提交成功后才删除原视频，失败时保留素材便于排查或重试
+        if (state.autoDelete) {
+          await deleteOriginalVideo(currentVideo.path, i)
+        }
       } catch (error) {
         console.error(error)
         updateVideoStatus(i, '失败', 'status--error')
         failCount += 1
         MessagePlugin.error(error?.message || `第 ${i + 1} 个任务失败`)
-      } finally {
-        if (state.autoDelete) {
-          await deleteOriginalVideo(currentVideo.path, i)
-        }
       }
     }
 
     if (!state.interrupted) {
       MessagePlugin.success(`批量合成任务已完成，成功 ${successCount} 个，失败 ${failCount} 个`)
+      // 提交完成后回到首页，方便运营到"我的作品"里看进度
+      setTimeout(goHome, 1500)
     }
   } finally {
     state.loading = false

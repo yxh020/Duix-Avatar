@@ -17,6 +17,12 @@ export const serviceUrl = {
   tts: resolveServiceUrl('DUIX_TTS_URL', defaultTtsUrl)
 }
 
+// face2face 容器名。运营机器 99% 跟 deploy/start-duix-lite.ps1 一致用 'duix-avatar-gen-video'。
+// 若哪台机器自定义了容器名，启动 electron 前设环境变量 DUIX_CONTAINER_NAME=xxx 即可。
+export const dockerConfig = {
+  containerName: resolveServiceUrl('DUIX_CONTAINER_NAME', 'duix-avatar-gen-video')
+}
+
 export const assetPath = {
   model: isWin
     ? path.join('D:', 'duix_avatar_data', 'face2face', 'temp')

@@ -4,10 +4,9 @@ import path from 'path'
 import dayjs from 'dayjs'
 import { isEmpty } from 'lodash'
 import { insert, selectPage, count, selectByID, remove as deleteModel, selectByNamePrefix, removeByNamePrefix } from '../dao/f2f-model.js'
-import { train as trainVoice } from './voice.js'
 import { assetPath } from '../config/config.js'
 import log from '../logger.js'
-import { extractAudio, toH264 } from '../util/ffmpeg.js'
+import { toH264 } from '../util/ffmpeg.js'
 const MODEL_NAME = 'model'
 
 /**
@@ -31,28 +30,11 @@ async function addModel(modelName, videoPath) {
   try {
     await toH264(videoPath, modelPath)
 
-    // 用ffmpeg分离音频
-    if (!fs.existsSync(assetPath.ttsTrain)) {
-      fs.mkdirSync(assetPath.ttsTrain, {
-        recursive: true
-      })
-    }
-    const audioPath = path.join(assetPath.ttsTrain, modelFileName.replace(extname, '.wav'))
-    await extractAudio(modelPath, audioPath)
-
-    // 训练语音模型
-    const relativeAudioPath = path.relative(assetPath.ttsRoot, audioPath)
-    const voiceId = await trainVoice(relativeAudioPath, 'zh')
-    if (!voiceId) {
-      throw new Error('语音模型训练失败，未生成可用的 voiceId')
-    }
-
-    // 插入模特信息
+    // lite 模式：跳过 trainVoice（TTS 18180 没起），voice_id / audio_path 留空。
+    // 后续 makeVideo 只在 video.audio_path 为空时才回退到 TTS 生成音频，
+    // 批量页/单任务页都会带 audio_path，不会触发那条分支。
     const relativeModelPath = path.relative(assetPath.model, modelPath)
-    const storedAudioPath = path.relative(assetPath.ttsRoot, audioPath)
-
-    // insert model info to db
-    const id = insert({ modelName, videoPath: relativeModelPath, audioPath: storedAudioPath, voiceId })
+    const id = insert({ modelName, videoPath: relativeModelPath, audioPath: '', voiceId: '' })
     return id
   } catch (error) {
     log.error('~ addModel ~ error:', error)
@@ -121,6 +103,16 @@ function removeTempModels() {
   })
   removeByNamePrefix('__TMP__')
   return tempModels.length
+}
+
+// 给 video.js 在任务终结时调用。lite 模式批量页每个任务建一个 __TMP__ 模特，
+// 任务完成后自动清理掉，避免数据库和磁盘垃圾。
+export function removeModelById(modelId) {
+  removeModel(modelId)
+}
+
+export function isTempModelName(name) {
+  return typeof name === 'string' && name.startsWith('__TMP__')
 }
 
 export function init() {

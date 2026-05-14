@@ -1,11 +1,12 @@
-import { ipcMain } from 'electron'
+import { ipcMain, app } from 'electron'
 import crypto from 'crypto'
 import path from 'path'
 import fs from 'fs'
 import { isEmpty } from 'lodash'
-import { assetPath } from '../config/config.js'
+import { assetPath, dockerConfig } from '../config/config.js'
 import { selectPage,selectByStatus, updateStatus, remove as deleteVideo, findFirstByStatus } from '../dao/video.js'
 import { selectByID as selectF2FModelByID } from '../dao/f2f-model.js'
+import { removeModelById, isTempModelName } from './model.js'
 import { selectByID as selectVoiceByID } from '../dao/voice.js'
 import {
   insert as insertVideo,
@@ -154,6 +155,73 @@ export async function synthesisVideo(videoId) {
   return videoId
 }
 
+// face2face 服务端 /easy/query 的 progress 字段只跳 0/20/80/100 四档，
+// 同一档可能停几分钟，运营看着像卡死。
+// 真实进度从容器 stdout 抽：每渲染完一帧会打 "[N] avi write success, current_idx: M"。
+// 启动一次 `docker logs -f` 流式读，按 task code 维护已写出的最大帧号，
+// 配合提交前 ffprobe 拿到的总帧数（音频时长 × 30 fps），算真百分比。
+//
+// 这套是"硬件无关"的真实进度：4090 跑得快帧号涨得快、4060 慢就慢，
+// 跟 GPU/音频时长/分辨率无关，所见即所得。
+const frameIdxByCode = new Map()    // taskCode -> max current_idx 已写出
+const totalFramesByCode = new Map() // taskCode -> 预算总帧数
+
+let logTailer = null
+function ensureDockerLogTailer() {
+  if (logTailer) return
+  try {
+    const { spawn } = require('child_process')
+    logTailer = spawn('docker', ['logs', '-f', '--tail', '0', dockerConfig.containerName])
+    let buffer = ''
+    const onData = (chunk) => {
+      buffer += chunk.toString('utf8')
+      let nl
+      while ((nl = buffer.indexOf('\n')) >= 0) {
+        const line = buffer.slice(0, nl)
+        buffer = buffer.slice(nl + 1)
+        // 形如：... INFO: <code> -> [N] avi write success, current_idx: M.
+        const m = line.match(/INFO:\s+([a-f0-9-]{36})\s+->\s+\[\d+\]\s+avi write success,\s+current_idx:\s+(\d+)/)
+        if (m) {
+          const code = m[1]
+          const idx = parseInt(m[2], 10)
+          if (idx > (frameIdxByCode.get(code) || 0)) {
+            frameIdxByCode.set(code, idx)
+          }
+        }
+      }
+    }
+    logTailer.stdout.on('data', onData)
+    logTailer.stderr.on('data', onData) // docker logs 内容混在 stderr 里也常见
+    logTailer.on('exit', (code) => {
+      log.warn(`docker logs tailer exited (code=${code}), real progress will fall back to API`)
+      logTailer = null
+    })
+    logTailer.on('error', (err) => {
+      log.warn('docker logs tailer error:', err.message)
+      logTailer = null
+    })
+  } catch (e) {
+    log.warn('failed to spawn docker logs tailer:', e.message)
+    logTailer = null
+  }
+}
+
+// 容器渲染的真实 fps 写在每个任务开始时被覆盖的 result/param.json 第 4 个字段。
+// 当前镜像 = 30 fps，但若官方升级，从文件读才不会出错。
+// 同步 fs.readFileSync 即可，文件很小，提交前 < 1ms。
+function getCurrentFps() {
+  try {
+    const paramJsonPath = path.join(path.dirname(assetPath.model), 'result', 'param.json')
+    const data = JSON.parse(fs.readFileSync(paramJsonPath, 'utf8'))
+    if (Array.isArray(data) && typeof data[3] === 'number' && data[3] > 0) {
+      return data[3]
+    }
+  } catch (e) {
+    // 文件还没写出（首次运行）或者格式异常 —— 回落到 30
+  }
+  return 30
+}
+
 export async function loopPending() {
   const video = findFirstByStatus('pending')
   if (!video) {
@@ -167,15 +235,47 @@ export async function loopPending() {
 
   const statusRes = await getVideoStatus(video.code)
 
+  // lite 模式：任务结束（成功 / 失败 / 系统异常）都尝试回收临时模特 __TMP__。
+  // model_id 拿不到、模特不是临时的、删除报错都吞掉，不影响主链路。
+  const cleanupTempModel = () => {
+    try {
+      if (!video.model_id) return
+      const model = selectF2FModelByID(video.model_id)
+      if (model && isTempModelName(model.name)) {
+        removeModelById(model.id)
+      }
+    } catch (e) {
+      log.warn('cleanupTempModel error:', e.message)
+    }
+  }
+
   if ([9999, 10002, 10003].includes(statusRes.code)) {
     updateStatus(video.id, 'failed', statusRes.msg)
+    frameIdxByCode.delete(video.code)
+    totalFramesByCode.delete(video.code)
+    cleanupTempModel()
   } else if (statusRes.code === 10000) {
     if (statusRes.data.status === 1) {
+      ensureDockerLogTailer()
+      // 优先用 docker logs 抽到的真实帧号算百分比；拿不到就回退 API progress
+      let displayProgress = statusRes.data.progress
+      const total = totalFramesByCode.get(video.code)
+      const current = frameIdxByCode.get(video.code)
+      if (total > 0 && current > 0) {
+        const realPct = Math.floor((current / total) * 100)
+        displayProgress = Math.max(statusRes.data.progress, Math.min(99, realPct))
+      }
+      // 进度永不倒退：electron 重启或 docker logs 重新连接时，
+      // 内存里的帧号 Map 是空的，displayProgress 会被算成 API 报的低档值（比如 20）。
+      // 用 DB 已经写过的进度作下限兜住，运营不会看到进度条往回缩。
+      // 封顶 99，留给 status=2 的 100 跳变。
+      const dbProgress = typeof video.progress === 'number' ? video.progress : 0
+      displayProgress = Math.min(99, Math.max(dbProgress, displayProgress))
       updateStatus(
         video.id,
         'pending',
         statusRes.data.msg,
-        statusRes.data.progress,
+        displayProgress,
       )
     }else if (statusRes.data.status === 2) { // 合成成功
       // ffmpeg 获取视频时长
@@ -195,9 +295,15 @@ export async function loopPending() {
         file_path: statusRes.data.result,
         duration
       })
+      frameIdxByCode.delete(video.code)
+      totalFramesByCode.delete(video.code)
+      cleanupTempModel()
 
     } else if (statusRes.data.status === 3) {
       updateStatus(video.id, 'failed', statusRes.data.msg)
+      frameIdxByCode.delete(video.code)
+      totalFramesByCode.delete(video.code)
+      cleanupTempModel()
     }
   }
 
@@ -261,6 +367,19 @@ async function makeVideoByF2F(audioPath, videoPath) {
     watermark_switch: 0,
     pn: 1
   }
+
+  // 提交前预算总帧数：音频时长 × fps（fps 优先从上次任务的 param.json 读，回落 30）。
+  // 这个数会被 loopPending 用来算真实进度。失败了也不影响主流程，只是进度条会回退到 API 4 档。
+  try {
+    const fullAudioPath = path.join(assetPath.ttsProduct, audioPath)
+    const audioDuration = await getVideoDuration(fullAudioPath)
+    if (audioDuration > 0) {
+      totalFramesByCode.set(uuid, Math.ceil(audioDuration * getCurrentFps()))
+    }
+  } catch (e) {
+    log.warn('~ makeVideoByF2F ~ failed to compute total frames for progress:', e.message)
+  }
+
   const result = await makeVideoApi(param)
   return { param, result }
 }
@@ -270,6 +389,14 @@ function modify(video) {
 }
 
 export function init() {
+  // electron 退出前杀掉 docker logs 流的子进程，避免变成孤儿
+  app.on('before-quit', () => {
+    if (logTailer) {
+      try { logTailer.kill() } catch (e) { /* 子进程已死也 OK */ }
+      logTailer = null
+    }
+  })
+
   ipcMain.handle(MODEL_NAME + '/page', (event, ...args) => {
     return page(...args)
   })

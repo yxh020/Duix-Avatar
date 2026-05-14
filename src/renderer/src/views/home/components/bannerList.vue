@@ -1,6 +1,7 @@
 <template>
   <div class="banner-content-box">
-    <div class="banner-left" @click="action.handleCreateVideo">
+    <!-- lite 模式只保留批量入口；集成完整三服务后改 v-if="true" 可恢复"短视频制作"单任务卡 -->
+    <div v-if="false" class="banner-left" @click="action.handleCreateVideo">
       <div class="left-text">
         <div class="title-box">
           <div class="h1"> {{$t('common.banner0.title') }}</div>
@@ -11,7 +12,7 @@
         <div class="text" :style="locale === 'en' ?  'font-size: 13px;' : ''">{{$t('common.banner0.buttonText') }}</div>
       </div>
     </div>
-    <div class="banner-right">
+    <div class="banner-right banner-right--solo">
       <div class="title-box" :style="locale === 'zh' ? '' : 'padding: 12px 0px 0px 32px;'">
         <div class="h1">{{$t('common.banner1.buttonText') }}</div>
         <div class="text" :style="locale === 'zh' ? '' : ' width: 60%;'">{{$t('common.banner1.subTitle') }}</div>
@@ -20,7 +21,6 @@
           <img src="../../../assets/images/home/go.svg" />
         </div>
       </div>
-      <!-- <div class="quick-entry" :style="locale === 'en' ?  'font-size: 12px;' : ''" @click="action.handleCreateModel">{{$t('common.banner1.buttonText') }}</div> -->
     </div>
   </div>
 </template>
@@ -132,6 +132,11 @@ const action = {
     background-image: url("@renderer/assets/images/home/banner02.svg");
     background-size: cover;
     background-position: center;
+
+    /* lite 模式：左卡隐藏后让批量卡占满整行 */
+    &.banner-right--solo {
+      width: 100%;
+    }
 
     .title-box {
       padding: 32px 0px 0px 32px;

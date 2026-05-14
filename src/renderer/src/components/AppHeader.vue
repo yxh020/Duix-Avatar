@@ -1,7 +1,7 @@
 <template>
   <div class="header">
     <div class="header-left">
-      <img class="logo" src="@renderer/assets/images/icons/logo.png" alt="logo" />
+      <span class="brand">AI数字人</span>
     </div>
     <div class="header-right">
       <t-dropdown :maxColumnWidth="false" :min-column-width="88" panel-top-content="" placement="bottom-right"
@@ -179,6 +179,22 @@ const saveContextAjax = async (lang) => {
     .logo {
       width: 110px;
       height: 36px;
+    }
+
+    .brand {
+      display: inline-flex;
+      align-items: center;
+      height: 36px;
+      padding: 0 4px;
+      font-family: 'HarmonyOS Sans SC', 'Alibaba Sans', system-ui, sans-serif;
+      font-size: 20px;
+      font-weight: 700;
+      letter-spacing: 2px;
+      background: linear-gradient(135deg, #ffb800 0%, #ff7a00 100%);
+      -webkit-background-clip: text;
+      background-clip: text;
+      -webkit-text-fill-color: transparent;
+      user-select: none;
     }
   }
 

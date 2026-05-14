@@ -19,7 +19,8 @@
             <div class="line"></div>
           </div>
         </li>
-        <div @click="debug">debug</div>
+        <!-- 开发调试按钮，集成完整三服务时如果需要可以恢复 -->
+        <!-- <div @click="debug">debug</div> -->
       </div>
       <div class="list-data">
         <WorksList v-show="state.tabValue === 'worksList'" />
@@ -41,6 +42,7 @@ const { t, locale } = useI18n()
 const unRoute = useRoute();
 const home = useHomeStore();
 const myModelListRef = ref(null);
+// lite 模式只显示"我的作品"。集成完整三服务后把 "myModelList" 那条加回来。
 const state = reactive({
   tabList: [
     {
@@ -48,12 +50,6 @@ const state = reactive({
       name: t('common.tab.myWorksText'),
       active: true,
       id: "worksList",
-    },
-    {
-      key: 'common.tab.myAvatarsText',
-      name: t('common.tab.myAvatarsText'),
-      active: false,
-      id: "myModelList",
     },
   ],
   teType: "",
