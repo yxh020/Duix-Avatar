@@ -1,5 +1,5 @@
-appId: com.Duix.Avatar.app
-productName: Duix.Avatar
+appId: com.aishuziren.app
+productName: AI数字人
 directories:
   buildResources: build
 files:
@@ -11,7 +11,7 @@ files:
 asarUnpack:
   - resources/**
 win:
-  executableName: Duix.Avatar
+  executableName: AIShuZiRen
 nsis:
   oneClick: false
   allowElevation: true

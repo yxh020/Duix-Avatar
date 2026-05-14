@@ -32,9 +32,9 @@ export const commonZh = {
     buttonText: '创建视频'
   },
   banner1: {
-    title: '快速定制模特',
-    subTitle: '只需一个视频快速定制',
-    buttonText: '快速定制'
+    title: '批量对口型',
+    subTitle: '素材 + 音频 → 对口型作品',
+    buttonText: '批量对口型'
   },
   videoList: {
     previewTitle: '预览视频',
@@ -173,9 +173,9 @@ export const commonEn = {
     buttonText: 'Create Video'
   },
   banner1: {
-    title: 'Create Avatar',
-    subTitle: 'Upload a video to generate your own digital avatar.',
-    buttonText: 'Create Avatar'
+    title: 'Batch Lip-sync',
+    subTitle: 'Clips + Audios → Lip-sync videos',
+    buttonText: 'Batch Lip-sync'
   },
   videoList: {
     previewTitle: 'Preview',

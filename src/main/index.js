@@ -7,11 +7,15 @@ import { registerHandler } from './service/index.js'
 import { init as initInterval } from './interval/interval.js'
 import { registerWebHandles } from './handlers'
 
+// dev 模式下任务栏 / 标题栏显示名（生产由 electron-builder.yml 的 productName 控制）
+app.setName('AI数字人')
+
 initDB()
 initInterval()
 
 function createWindow() {
   const mainWindow = new BrowserWindow({
+    title: 'AI数字人',
     width: 1280,
     height: 825,
     show: false,
@@ -50,7 +54,8 @@ function createWindow() {
 }
 
 app.whenReady().then(() => {
-  electronApp.setAppUserModelId('com.electron')
+  // Windows 任务栏分组身份。生产环境会跟 electron-builder appId 对齐成 com.aishuziren.app
+  electronApp.setAppUserModelId('com.aishuziren.app')
 
   app.on('browser-window-created', (_, window) => {
     optimizer.watchWindowShortcuts(window)

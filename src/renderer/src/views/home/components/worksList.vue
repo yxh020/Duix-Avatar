@@ -71,8 +71,8 @@
               </div>
               <img
                 v-if="item.status === 'failed' || item.status === 'pending' || item.status === 'draft'"
-                class="works-img"
-                src="../../../assets/images/home/occupationMap.svg"
+                class="works-img works-img--brand"
+                src="../../../assets/images/home/hero.jpg"
               />
               <div v-if="item.status === 'failed' || item.status === 'draft'" class="fail">
                 <div class="fail-line"></div>
@@ -758,6 +758,13 @@ const downloadSelectedVideos = async () => {
               object-fit: cover;
               border-radius: 8px 8px 0 0;
               background-color: #fff;
+            }
+
+            /* 待制作 / 失败 / 渲染中显示的品牌占位图 —— hero.jpg + 透明度，弱化但保留品牌感 */
+            .works-img--brand {
+              opacity: 0.35;
+              filter: saturate(0.85);
+              background: linear-gradient(135deg, #f8fafc 0%, #eef2ff 100%);
             }
 
             .works-video {

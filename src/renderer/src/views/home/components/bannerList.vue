@@ -21,6 +21,7 @@
           <img src="../../../assets/images/home/go.svg" />
         </div>
       </div>
+      <img class="banner-hero" src="../../../assets/images/home/hero.jpg" alt="hero" />
     </div>
   </div>
 </template>
@@ -128,14 +129,26 @@ const action = {
     background-repeat: no-repeat;
     height: 160px;
     position: relative;
+    overflow: hidden;
     /* 固定高度 */
-    background-image: url("@renderer/assets/images/home/banner02.svg");
-    background-size: cover;
-    background-position: center;
+    background: linear-gradient(135deg, #4a90ff 0%, #2f80ed 100%);
 
     /* lite 模式：左卡隐藏后让批量卡占满整行 */
     &.banner-right--solo {
       width: 100%;
+    }
+
+    .banner-hero {
+      position: absolute;
+      top: 50%;
+      right: 32px;
+      transform: translateY(-50%);
+      height: 140px;
+      width: auto;
+      border-radius: 8px;
+      object-fit: cover;
+      pointer-events: none;
+      user-select: none;
     }
 
     .title-box {
