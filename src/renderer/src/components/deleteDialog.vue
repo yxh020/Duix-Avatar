@@ -24,6 +24,7 @@
           <img src="../assets/images/home/warning.svg" />
           <div class="title-ok">{{ $t('common.deleteDialog.titleOk') }}</div>
           <div class="title-text">{{ $t('common.deleteDialog.titleText') }}</div>
+          <div v-if="extraNote" class="in-progress-note">{{ extraNote }}</div>
         </div>
       </div>
     </t-dialog>
@@ -33,11 +34,13 @@
 import { ref } from 'vue'
 const emit = defineEmits(['cancel', 'ok'])
 const showDialog = ref(false)
+const extraNote = ref('')
 const cancelUpload = () => {
   showDialog.value = false
   emit('cancel')
 }
-const showDialogFun = () => {
+const showDialogFun = (note = '') => {
+  extraNote.value = typeof note === 'string' ? note : ''
   showDialog.value = true
 }
 const okFun = () => {
@@ -82,6 +85,17 @@ defineExpose({
       height: 48px;
       display: block;
       margin: 20px auto 16px;
+    }
+    .in-progress-note {
+      margin: 12px 16px 0;
+      padding: 10px 14px;
+      background: #fff7e6;
+      border: 1px solid #ffe1a8;
+      border-radius: 6px;
+      color: #b45309;
+      font-size: 12px;
+      line-height: 1.6;
+      text-align: left;
     }
   }
 }

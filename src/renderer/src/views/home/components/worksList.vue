@@ -67,7 +67,11 @@
                 {{ item.duration + '' ? millisecondsToTime(item.duration * 1000) : '00:00' }}
               </div>
               <div v-if="item.status === 'success'" class="works-video">
-                <img :src="getVideoThumbnail(item) || occupationMap" alt="video thumbnail" />
+                <img
+                  :src="getVideoThumbnail(item) || occupationMap"
+                  :class="{ 'works-img--brand': !getVideoThumbnail(item) }"
+                  alt="video thumbnail"
+                />
               </div>
               <img
                 v-if="item.status === 'failed' || item.status === 'pending' || item.status === 'draft'"
@@ -204,7 +208,8 @@ import zhConfig from 'tdesign-vue-next/es/locale/zh_CN'
 import { useI18n } from 'vue-i18n'
 const { locale, t } = useI18n()
 import { localUrl } from '@renderer/utils'
-import occupationMap from '../../../assets/images/home/occupationMap.svg'
+// 占位图统一用品牌 hero.jpg（金身火爆熊），覆盖 success 任务缩略图加载失败的 fallback
+import occupationMap from '../../../assets/images/home/hero.jpg'
 
 import merge from 'lodash/merge'
 const globalEn = merge(enConfig, {
@@ -472,7 +477,13 @@ const onCurrentChange = (index) => {
 const delVideo = (id) => {
   console.log("🚀 ~ delVideo ~ id:", id)
   if (deleteDialogRef.value && deleteDialogRef.value.showDialogFun) {
-    deleteDialogRef.value.showDialogFun()
+    // 正在制作中（status=pending）的任务：face2face 容器没有 /cancel API，
+    // 删除只是清记录，GPU 还会继续跑完。给运营一个明确的提示，避免误以为真的停了。
+    const target = state.worksList.find((item) => item.id === id)
+    const note = target && target.status === 'pending'
+      ? '此任务正在 GPU 渲染中，删除仅会清除记录，容器仍会渲染到完成（结果文件保留在模型目录但不再显示）。建议等任务结束再删。'
+      : ''
+    deleteDialogRef.value.showDialogFun(note)
     state.delVideoId = id
   }
 }

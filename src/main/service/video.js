@@ -165,6 +165,10 @@ export async function synthesisVideo(videoId) {
 // 跟 GPU/音频时长/分辨率无关，所见即所得。
 const frameIdxByCode = new Map()    // taskCode -> max current_idx 已写出
 const totalFramesByCode = new Map() // taskCode -> 预算总帧数
+const startAtByCode = new Map()     // taskCode -> 首次见到 status=1 的时间戳（用于 0→20% 软启动）
+// 软启动时长：服务端 /easy/query 一进入 status=1 就直接报 20%（特征提取阶段无细分），
+// 用前 30 秒按时间线性 ramp 0→20，避免运营看到一上来就 20% 觉得"虚标"。
+const SOFT_START_MS = 30_000
 
 let logTailer = null
 function ensureDockerLogTailer() {
@@ -253,10 +257,15 @@ export async function loopPending() {
     updateStatus(video.id, 'failed', statusRes.msg)
     frameIdxByCode.delete(video.code)
     totalFramesByCode.delete(video.code)
+    startAtByCode.delete(video.code)
     cleanupTempModel()
   } else if (statusRes.code === 10000) {
     if (statusRes.data.status === 1) {
       ensureDockerLogTailer()
+      // 首次见到 status=1 → 记下时间戳，后面用于 0→20% 软启动 ramp
+      if (!startAtByCode.has(video.code)) {
+        startAtByCode.set(video.code, Date.now())
+      }
       // 优先用 docker logs 抽到的真实帧号算百分比；拿不到就回退 API progress
       let displayProgress = statusRes.data.progress
       const total = totalFramesByCode.get(video.code)
@@ -271,6 +280,13 @@ export async function loopPending() {
       // 封顶 99，留给 status=2 的 100 跳变。
       const dbProgress = typeof video.progress === 'number' ? video.progress : 0
       displayProgress = Math.min(99, Math.max(dbProgress, displayProgress))
+      // 软启动 cap：前 30 秒按时间线性 ramp 0→20，盖住服务端瞬跳到 20% 的问题。
+      // 只在还在 0→20 阶段（dbProgress < 20）应用，避免重启 session 时把已经爬到的进度拉回来。
+      if (dbProgress < 20) {
+        const elapsed = Date.now() - startAtByCode.get(video.code)
+        const softCap = Math.floor(Math.min(1, elapsed / SOFT_START_MS) * 20)
+        displayProgress = Math.min(displayProgress, softCap)
+      }
       updateStatus(
         video.id,
         'pending',
@@ -297,12 +313,14 @@ export async function loopPending() {
       })
       frameIdxByCode.delete(video.code)
       totalFramesByCode.delete(video.code)
+      startAtByCode.delete(video.code)
       cleanupTempModel()
 
     } else if (statusRes.data.status === 3) {
       updateStatus(video.id, 'failed', statusRes.data.msg)
       frameIdxByCode.delete(video.code)
       totalFramesByCode.delete(video.code)
+      startAtByCode.delete(video.code)
       cleanupTempModel()
     }
   }

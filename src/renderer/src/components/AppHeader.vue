@@ -2,6 +2,7 @@
   <div class="header">
     <div class="header-left">
       <span class="brand">AI数字人</span>
+      <span class="build-tag" :title="`build ${appBuildTime}`">v{{ appVersion }} · {{ appBuildTime }}</span>
     </div>
     <div class="header-right">
       <t-dropdown :maxColumnWidth="false" :min-column-width="88" panel-top-content="" placement="bottom-right"
@@ -57,6 +58,12 @@ import { saveContext } from '@renderer/api/index.js'
 import { lang_ } from '@renderer/utils/const.js'
 const { locale, t } = useI18n()
 const home = useHomeStore()
+
+// vite 注入：版本号 + 编译时间，用于 header 右侧的小标签
+// eslint-disable-next-line no-undef
+const appVersion = typeof __APP_VERSION__ !== 'undefined' ? __APP_VERSION__ : '0.0.0'
+// eslint-disable-next-line no-undef
+const appBuildTime = typeof __BUILD_TIME__ !== 'undefined' ? __BUILD_TIME__ : 'dev'
 const state = reactive({
   isMaximized: false,
   menuList: [
@@ -175,6 +182,9 @@ const saveContextAjax = async (lang) => {
     width: 100%;
     flex: 1;
     height: 100%;
+    display: flex;
+    align-items: center;
+    gap: 12px;
 
     .logo {
       width: 110px;
@@ -195,6 +205,18 @@ const saveContextAjax = async (lang) => {
       background-clip: text;
       -webkit-text-fill-color: transparent;
       user-select: none;
+    }
+
+    .build-tag {
+      font-family: 'Consolas', 'JetBrains Mono', monospace;
+      font-size: 11px;
+      font-weight: 400;
+      color: #999;
+      padding: 2px 6px;
+      border-radius: 4px;
+      background: #f6f6f6;
+      user-select: none;
+      letter-spacing: 0;
     }
   }
 

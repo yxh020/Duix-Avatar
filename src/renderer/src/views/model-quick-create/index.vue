@@ -2,31 +2,50 @@
   <t-layout class="quick-create-layout">
     <t-content class="quick-create-content">
       <div class="panel">
-        <div class="title">上传多个原始视频并轮流使用多个音频</div>
-        <div class="subtitle">
-          页面会为每个视频先创建一个带特殊名称的模特，然后按顺序轮流使用已选音频依次提交合成任务。
-        </div>
-
-        <t-button theme="primary" variant="outline" class="back-btn" @click="goHome">返回首页</t-button>
-
-        <div class="form-item">
-          <span class="label">批量任务名称前缀</span>
-          <div class="value readonly">{{ tempPrefix }}</div>
-        </div>
-
-        <div class="form-item">
-          <span class="label">原始视频（已选 {{ state.videos.length }} 个）</span>
-          <div class="list-actions">
-            <t-button theme="default" variant="outline" :disabled="loading" @click="pickVideos">
-              选择视频
-            </t-button>
-            <t-button theme="default" variant="outline" :disabled="loading || !state.videos.length" @click="clearVideos">
-              清空
-            </t-button>
+        <div class="panel-head">
+          <div class="head-text">
+            <div class="title">批量对口型合成</div>
+            <div class="subtitle-row">
+              <div class="subtitle">
+                为每段素材配上音频，逐个提交合成任务。素材数 ≥ 音频数时音频会循环复用。
+              </div>
+              <div class="future-chip" title="更多配对方式（N:1 / 顺序 / 随机 / 自定义）开发中">
+                <span class="future-dot"></span>
+                更多配对方式 · 敬请期待
+              </div>
+            </div>
+            <div v-if="state.videos.length || state.audios.length" class="pair-badge">
+              <span class="pair-num">{{ state.videos.length }}</span>
+              <span class="pair-icon">×</span>
+              <span class="pair-num">{{ state.audios.length }}</span>
+              <span class="pair-arrow">→</span>
+              <span class="pair-num pair-num--strong">{{ state.videos.length }}</span>
+              <span class="pair-label">个作品</span>
+            </div>
           </div>
-          <div class="option-row">
-            <t-switch v-model="state.autoDelete" :disabled="state.loading" />
-            <span class="option-label">任务完成后自动删除原视频</span>
+          <div class="head-extra">
+            <t-button class="back-btn" theme="default" variant="outline" @click="goHome">返回首页</t-button>
+          </div>
+        </div>
+
+        <div class="form-card">
+        <div class="form-item">
+          <div class="form-item__head">
+            <span class="label">
+              素材视频<span class="label-count">已选 {{ state.videos.length }} 个</span>
+              <span class="label-hint">· 支持一次多选，再次选择会替换</span>
+            </span>
+            <div class="list-actions">
+              <t-tooltip :content="state.videos.length ? '将替换当前列表，请一次性多选完成' : '在弹窗里按 Ctrl / Shift 一次性多选'" placement="top">
+                <t-button theme="primary" variant="outline" :disabled="loading" @click="pickVideos">
+                  <template #icon><AddIcon /></template>
+                  {{ state.videos.length ? '重新选择' : '选择视频' }}
+                </t-button>
+              </t-tooltip>
+              <t-button theme="default" variant="text" size="small" :disabled="loading || !state.videos.length" @click="clearVideos">
+                清空
+              </t-button>
+            </div>
           </div>
           <div class="file-list" v-if="state.videos.length">
             <div v-for="(item, index) in state.videos" :key="item.path" class="file-item">
@@ -44,18 +63,29 @@
               </t-button>
             </div>
           </div>
-          <div v-else class="empty block-empty">点击选择多个视频文件</div>
+          <div v-else class="drop-zone" @click="!loading && pickVideos()">
+            <AddIcon class="drop-icon" />
+            <span>点击选择多段素材视频</span>
+          </div>
         </div>
 
         <div class="form-item">
-          <span class="label">音频文件（可多选）</span>
-          <div class="list-actions">
-            <t-button theme="default" variant="outline" :disabled="loading" @click="pickAudios">
-              选择音频
-            </t-button>
-            <t-button theme="default" variant="outline" :disabled="loading || !state.audios.length" @click="clearAudios">
-              清空
-            </t-button>
+          <div class="form-item__head">
+            <span class="label">
+              音频文件<span class="label-count">已选 {{ state.audios.length }} 个</span>
+              <span class="label-hint">· 支持一次多选，再次选择会替换</span>
+            </span>
+            <div class="list-actions">
+              <t-tooltip :content="state.audios.length ? '将替换当前列表，请一次性多选完成' : '在弹窗里按 Ctrl / Shift 一次性多选'" placement="top">
+                <t-button theme="primary" variant="outline" :disabled="loading" @click="pickAudios">
+                  <template #icon><AddIcon /></template>
+                  {{ state.audios.length ? '重新选择' : '选择音频' }}
+                </t-button>
+              </t-tooltip>
+              <t-button theme="default" variant="text" size="small" :disabled="loading || !state.audios.length" @click="clearAudios">
+                清空
+              </t-button>
+            </div>
           </div>
           <div class="file-list" v-if="state.audios.length">
             <div v-for="(item, index) in state.audios" :key="item.path" class="file-item">
@@ -68,16 +98,26 @@
               </t-button>
             </div>
           </div>
-          <div v-else class="empty block-empty">点击选择多个音频文件</div>
+          <div v-else class="drop-zone" @click="!loading && pickAudios()">
+            <AddIcon class="drop-icon" />
+            <span>点击选择音频文件（mp3 / wav，每个音频对应一个作品）</span>
+          </div>
         </div>
 
         <div class="actions">
-          <t-button theme="default" variant="outline" :disabled="!state.loading" @click="interrupt">
-            中断批量
-          </t-button>
-          <t-button theme="primary" :loading="loading" :disabled="!canSubmit" @click="submit">
-            开始批量合成
-          </t-button>
+          <div class="actions-left">
+            <t-switch v-model="state.autoDelete" :disabled="state.loading" size="small" />
+            <span class="option-label">完成后自动删除原素材（失败时素材始终保留）</span>
+          </div>
+          <div class="actions-right">
+            <t-button theme="default" variant="outline" :disabled="!state.loading" @click="interrupt">
+              中断后续
+            </t-button>
+            <t-button theme="primary" :loading="loading" :disabled="!canSubmit" @click="submit">
+              开始批量合成
+            </t-button>
+          </div>
+        </div>
         </div>
       </div>
     </t-content>
@@ -88,6 +128,7 @@
 import { computed, reactive } from 'vue'
 import { useRouter } from 'vue-router'
 import { MessagePlugin } from 'tdesign-vue-next'
+import { AddIcon } from 'tdesign-icons-vue-next'
 import { addModel, makeVideo, modelPage, saveVideo } from '@renderer/api'
 import { Client } from '@renderer/client'
 
@@ -289,10 +330,10 @@ const submit = async () => {
     display: flex;
     justify-content: flex-start;
     align-items: flex-start;
-    height: calc(100vh - 24px);
+    height: calc(100vh - 60px);
     min-height: 0;
-    padding: 0 24px 24px;
-    background: #ffffff;
+    padding: 20px;
+    background: #f4f4f6;
     overflow: auto;
     scrollbar-width: thin;
     scrollbar-color: rgba(99, 102, 241, 0.45) transparent;
@@ -323,38 +364,182 @@ const submit = async () => {
 
   .panel {
     width: 100%;
-    max-width: 1280px;
-    min-height: calc(100vh - 48px);
-    background: #ffffff;
-    border: 1px solid #e8e8e8;
-    border-radius: 12px;
-    padding: 24px;
-    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.04);
+    background: transparent;
     display: flex;
     flex-direction: column;
-    position: relative;
-    .back-btn{
-      position: absolute;
-      right: 24px;
-      top: 24px;
-    }
   }
 
-  .title { font-size: 22px; font-weight: 700; margin-bottom: 8px; color: #1d1e20; }
-  .subtitle { color: #6b7280; font-size: 13px; margin-bottom: 24px; line-height: 1.6; }
+  .form-card {
+    display: flex;
+    flex-direction: column;
+    background: #ffffff;
+    border-radius: 12px;
+    padding: 24px;
+  }
+
+  .panel-head {
+    position: relative;
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 16px;
+    margin-bottom: 24px;
+    padding: 28px 32px;
+    min-height: 160px;
+    background: linear-gradient(135deg, #4a90ff 0%, #2f80ed 100%);
+    border-radius: 12px;
+    box-shadow: 0 6px 18px rgba(47, 128, 237, 0.18);
+    overflow: hidden;
+  }
+  .panel-head::before {
+    content: '';
+    position: absolute;
+    top: -40%;
+    right: -10%;
+    width: 320px;
+    height: 320px;
+    border-radius: 50%;
+    background: radial-gradient(circle, rgba(255,255,255,0.18) 0%, rgba(255,255,255,0) 70%);
+    pointer-events: none;
+  }
+  .panel-head::after {
+    content: '';
+    position: absolute;
+    bottom: -50%;
+    left: 30%;
+    width: 260px;
+    height: 260px;
+    border-radius: 50%;
+    background: radial-gradient(circle, rgba(255,255,255,0.10) 0%, rgba(255,255,255,0) 70%);
+    pointer-events: none;
+  }
+  .head-text { min-width: 0; flex: 1; position: relative; z-index: 1; }
+  .head-extra { display: flex; align-items: center; gap: 12px; flex: none; position: relative; z-index: 1; }
+  .subtitle-row { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-top: 8px; }
+
+  .future-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 12px;
+    background: rgba(255, 255, 255, 0.18);
+    border: 1px solid rgba(255, 255, 255, 0.35);
+    border-radius: 999px;
+    font-size: 12px;
+    color: #ffffff;
+    backdrop-filter: blur(4px);
+    user-select: none;
+    cursor: help;
+    transition: background 0.2s, border-color 0.2s;
+  }
+  .future-chip:hover {
+    background: rgba(255, 255, 255, 0.26);
+    border-color: rgba(255, 255, 255, 0.55);
+  }
+  .future-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: #ffd166;
+    box-shadow: 0 0 0 0 rgba(255, 209, 102, 0.7);
+    animation: future-pulse 1.8s ease-out infinite;
+  }
+  @keyframes future-pulse {
+    0%   { box-shadow: 0 0 0 0 rgba(255, 209, 102, 0.7); }
+    70%  { box-shadow: 0 0 0 8px rgba(255, 209, 102, 0); }
+    100% { box-shadow: 0 0 0 0 rgba(255, 209, 102, 0); }
+  }
+
+  .pair-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    margin-top: 12px;
+    padding: 6px 14px;
+    background: rgba(255, 255, 255, 0.16);
+    border: 1px solid rgba(255, 255, 255, 0.32);
+    border-radius: 999px;
+    font-size: 13px;
+    color: #ffffff;
+    backdrop-filter: blur(4px);
+    user-select: none;
+  }
+  .pair-num { font-weight: 600; min-width: 14px; text-align: center; color: #ffffff; }
+  .pair-num--strong { color: #fff6d6; font-size: 16px; font-weight: 700; }
+  .pair-icon { color: rgba(255, 255, 255, 0.7); font-size: 12px; }
+  .pair-arrow { color: rgba(255, 255, 255, 0.7); margin: 0 2px; }
+  .pair-label { color: rgba(255, 255, 255, 0.85); font-size: 12px; }
+
+  .title {
+    font-family: 'Alimama FangYuanTi VF-Bold', 'PingFang SC', sans-serif;
+    font-size: 28px;
+    font-weight: 700;
+    color: #ffffff;
+    letter-spacing: 2px;
+    line-height: 1.3;
+    margin: 0;
+  }
+  .subtitle {
+    color: rgba(255, 255, 255, 0.85);
+    font-size: 13px;
+    line-height: 1.6;
+    margin: 0;
+    letter-spacing: 0.5px;
+  }
+
+  .back-btn {
+    background: rgba(255, 255, 255, 0.95) !important;
+    border-color: rgba(255, 255, 255, 0.95) !important;
+    color: #2f80ed !important;
+    font-weight: 600;
+  }
+  .back-btn:hover {
+    background: #ffffff !important;
+    color: #1f6fda !important;
+  }
   .form-item { margin-bottom: 20px; }
-  .label { display: block; margin-bottom: 10px; font-size: 13px; color: #374151; }
-  .readonly, .empty, .file-list {
+  .form-item__head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 10px;
+  }
+  .label { font-size: 13px; color: #374151; display: inline-flex; align-items: baseline; gap: 8px; flex-wrap: wrap; }
+  .label-count { font-size: 12px; color: #9ca3af; font-weight: normal; }
+  .label-hint { font-size: 12px; color: #b5b9c1; font-weight: normal; }
+  .readonly, .file-list {
     background: #fafafa;
     border: 1px solid #e5e7eb;
     border-radius: 8px;
   }
   .readonly { min-height: 44px; display: flex; align-items: center; padding: 0 14px; color: #111827; font-size: 14px; }
-  .empty { color: #9ca3af; padding: 18px; width: 100%; min-height: 90px; display: flex; align-items: center; justify-content: center; border: none; }
 
-  .list-actions { display: flex; gap: 12px; margin-bottom: 12px; }
-  .option-row { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; color: #374151; font-size: 13px; }
-  .option-label { user-select: none; font-size: 12px; color: #666;}
+  .drop-zone {
+    color: #9ca3af;
+    width: 100%;
+    min-height: 64px;
+    padding: 12px 18px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    background: #fafbfc;
+    border: 1px dashed #d1d5db;
+    border-radius: 8px;
+    font-size: 13px;
+    cursor: pointer;
+    transition: border-color 0.15s, background 0.15s, color 0.15s;
+  }
+  .drop-zone:hover {
+    border-color: #6366f1;
+    background: #f5f6ff;
+    color: #4f46e5;
+  }
+  .drop-icon { font-size: 16px; }
+
+  .list-actions { display: flex; gap: 8px; align-items: center; }
+  .option-label { user-select: none; font-size: 12px; color: #6b7280; }
   .file-list { padding: 12px; display: grid; gap: 8px; max-height: 220px; overflow: auto; scrollbar-width: thin; scrollbar-color: rgba(99, 102, 241, 0.35) transparent; }
   .file-list::-webkit-scrollbar { width: 8px; height: 8px; }
   .file-list::-webkit-scrollbar-track { background: transparent; }
@@ -389,6 +574,17 @@ const submit = async () => {
   .status--warning { color: #b45309; background: #fffbeb; border-color: #fde68a; }
   .delete-btn { flex: none; color: #ef4444; }
 
-  .actions { display: flex; justify-content: flex-end; gap: 12px; margin-top: 24px; flex: none; }
+  .actions {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    margin-top: 4px;
+    padding-top: 20px;
+    border-top: 1px solid #f0f1f3;
+    flex: none;
+  }
+  .actions-left { display: flex; align-items: center; gap: 10px; min-width: 0; }
+  .actions-right { display: flex; align-items: center; gap: 12px; flex: none; }
 }
 </style>

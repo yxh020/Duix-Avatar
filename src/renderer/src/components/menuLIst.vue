@@ -17,6 +17,8 @@ import { reactive, watch, computed } from 'vue'
 import onIcon from '../assets/images/home/menu/onHome.svg'
 import activeIcon from '../assets/images/home/menu/active.svg'
 import offIcon from '../assets/images/home/menu/offHome.svg'
+import onBatchIcon from '../assets/images/home/menu/onBatch.svg'
+import offBatchIcon from '../assets/images/home/menu/offBatch.svg'
 import { useI18n } from 'vue-i18n'
 const { t, locale } = useI18n()
 const unRoute = useRoute()
@@ -29,14 +31,15 @@ const obj = [
     offIcon,
     active: true,
     path: '/home'
+  },
+  {
+    key: 'common.menu.batchText',
+    name: t('common.menu.batchText'),
+    onIcon: onBatchIcon,
+    offIcon: offBatchIcon,
+    active: false,
+    path: '/model/quick-create'
   }
-  /* {
-      name: "账号",
-      onIcon,
-      offIcon,
-      active: true,
-      path: "/account",
-    }, */
 ]
 const state = reactive({
   menuList: obj
@@ -57,7 +60,8 @@ watch(
         el.active = false
       }
     })
-  }
+  },
+  { immediate: true }
 )
 const handleClick = (item) => {
   router.push(item.path)
