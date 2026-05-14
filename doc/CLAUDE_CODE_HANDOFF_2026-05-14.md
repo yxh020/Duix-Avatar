@@ -215,3 +215,165 @@ Invoke-WebRequest -UseBasicParsing -Uri "http://127.0.0.1:8383/easy/query?code=t
 说明：
 - Docker 配置文件 `C:\Users\Admin\.docker\daemon.json` 不在仓库里，不会进 git。
 
+## 12. lite curl 端到端实测验证（2026-05-14 23:24 ~ 23:34）
+
+第一次接手后用 curl 直接打通了 lite 单服务的合成链路，跳过整个客户端。
+踩出来的契约写在下面，**下次接手前先看这一节，能省一遍试错。**
+
+### 测试用例
+
+| 项 | 值 |
+|---|---|
+| 视频 | `E:\AI-code\inputfiles\已去水印素材.mp4`（12 MB，1080×1920，竖屏） |
+| 音频 | `E:\AI-code\inputfiles\钩子马.mp3`（1.9 MB，约 82 秒） |
+| 容器 | `duix-avatar-gen-video`（lite 单服务，已 up） |
+| GPU | RTX 4060 Ti，运行时占用 ~79%、显存 5.9 / 8.0 GB |
+| 耗时 | submit → status=2 约 **8 分 30 秒** |
+| 出片 | 68 MB，82.5 秒，1080×1920 |
+
+### 已确认的 5 条 API 契约
+
+1. **路径语义 = basename**
+   - `audio_url` / `video_url` 字段是相对 `/code/data/temp/` 的 **文件名**，不是绝对路径
+   - 即 host 上要把素材放到 `E:\docker-data\duix-avatar-data\face2face\temp\`
+   - 客户端代码 [src/main/service/video.js:256-263](src/main/service/video.js:256) 提交参数已经是 basename 形式，跟服务约定一致
+
+2. **出片落点 = temp/，不是 result/**
+   - API 返回 `result: "/test001-r.mp4"`，前面一道斜杠**只是分隔符**
+   - 实际文件在 `/code/data/temp/{code}-r.mp4`，host 对应：
+     `E:\docker-data\duix-avatar-data\face2face\temp\{code}-r.mp4`
+   - `result/` 目录只放 `param.json`（中间元数据：`[code, video_path, has_audio, fps, w, h, avi_path, work_dir, audio_npy, ?]`）
+   - 这跟原客户端 [src/main/service/video.js:186](src/main/service/video.js:186) 用 `assetPath.model` 拼路径的逻辑是吻合的（model 路径 = temp 路径）
+   - **重点**：出片文件名是 `{code}-r.mp4`（带 `-r` 后缀），不是 `{code}.mp4`
+
+3. **音频要先转 wav**
+   - mp3 没裸提交过，**别冒险**
+   - 转码命令（直接用容器内 ffmpeg，省一次本机依赖）：
+     ```bash
+     docker exec duix-avatar-gen-video ffmpeg -y -loglevel error \
+       -i /code/data/temp/<src>.mp3 -ar 16000 -ac 1 /code/data/temp/<src>.wav
+     ```
+
+4. **progress 字段精度极差**
+   - 整个生命周期只在 **20%（特征提取完成）→ 80%（视频处理完成）→ 100%（任务完成）** 跳三档
+   - 中间真实进度只能靠 `docker logs duix-avatar-gen-video --tail N` 看 `[N] preprocess_/avi write` 帧号
+   - 后面做 UI 的话：**别绑 API progress 做精细进度条**，按"提交中 → 处理中 → 完成"三态显示更靠谱
+
+5. **status 值约定**
+   - `status=1` 运行中
+   - `status=2` 成功（带 `cost / width / height / video_duration`）
+   - `status=3` 失败
+
+### 路径不对齐问题（接手时必须改）
+
+客户端 [src/main/config/config.js:20-33](src/main/config/config.js:20) 仍写死 `D:\duix_avatar_data\...`，
+但容器只挂了 `E:\docker-data\duix-avatar-data\face2face`，两边对不上。
+
+不改这个，直接跑 electron 客户端肯定败：UI 把素材写到 D:\，容器在 E:\ 上找不到。
+
+### 批量页的 addModel 死路
+
+[src/renderer/src/views/model-quick-create/index.vue:173](src/renderer/src/views/model-quick-create/index.vue:173)
+调 `addModel`，`addModel` 一定会调 `trainVoice`（见 [src/main/service/model.js:35-48](src/main/service/model.js:35) → [src/main/service/voice.js:17-31](src/main/service/voice.js:17)），
+而 trainVoice 走 TTS 服务（18180），lite 模式没起 TTS，必失败。
+
+接手时**必改**：批量页 submitOne() 跳过 addModel/saveVideo，直接：
+
+```
+对每个 (video, audio):
+  1. 拷视频/音频到 E:\docker-data\duix-avatar-data\face2face\temp\
+  2. POST /easy/submit  { audio_url: 'xxx.wav', video_url: 'yyy.mp4', code: uuid, chaofen:0, watermark_switch:0, pn:1 }
+  3. 轮询 /easy/query?code=uuid
+  4. status=2 → 把 {code}-r.mp4 拷到用户指定输出目录（用详细命名）
+```
+
+### 留在 temp/ 的测试样品
+
+```
+E:\docker-data\duix-avatar-data\face2face\temp\
+  test1.mp4          原视频
+  test1.mp3          原音频
+  test1.wav          ffmpeg 转出来的 wav
+  test001-r.mp4      出片（68 MB，82s，1080x1920）
+  test001/           中间帧目录
+```
+
+下次接手前可以保留，作为 "API 通不通" 的基准测试样本。
+要清就 `rm -rf E:\docker-data\duix-avatar-data\face2face\temp\test*`。
+
+### 复现命令（一键自测）
+
+```powershell
+# 1. 看容器和 GPU
+docker ps
+docker logs duix-avatar-gen-video --tail 40
+
+# 2. 提交（前提：temp/ 下已有 test1.wav + test1.mp4）
+curl.exe -s -X POST -H "Content-Type: application/json" `
+  -d '{\"audio_url\":\"test1.wav\",\"video_url\":\"test1.mp4\",\"code\":\"selfcheck001\",\"chaofen\":0,\"watermark_switch\":0,\"pn\":1}' `
+  http://127.0.0.1:8383/easy/submit
+
+# 3. 轮询
+curl.exe -s "http://127.0.0.1:8383/easy/query?code=selfcheck001"
+```
+
+## 13. 数据目录标准修正（2026-05-15）：E:\\ → D:\\
+
+§2 § 12 里写的 `E:\docker-data\duix-avatar-data\face2face` 是 codex 当时拍的标准，
+**实际验证发现这个标准是错的**：
+
+- 官方客户端 `Duix.Avatar-1.0.6-lite-setup.exe` 默认把视频/音频写到 `D:\duix_avatar_data\face2face\temp\`
+- 官方 `deploy/docker-compose-lite.yml` 默认挂载也是 `d:/duix_avatar_data/face2face`
+- E:\\docker-data\\ 这条标准跟官方默认完全不对齐，**实测一上就死**：
+  容器在 /code/data/temp/ 找不到客户端写到 D:\\ 的文件 → `三次获取音频时长失败`
+
+修正：
+
+- 当前 `deploy/docker-compose-lite.local.yml` 已改回 `d:/duix_avatar_data/face2face`（跟官方完全一致，本质冗余，本次清理已删除该文件）
+- 之后 lite 路线**统一走官方默认 `D:\duix_avatar_data\face2face`**
+- 完整三服务（`docker-compose.local.yml`）仍然挂 E:\\docker-data\\ —— 后续如果真要起完整三服务，需要二次修正
+
+E:\\docker-data\\duix-avatar-data\\face2face\\temp\\ 里残留的 §12 测试样品（test1.*、test001-r.mp4）从这台机的容器视角已不可见，但物理文件仍在盘上。要清直接 `rm -rf`。
+
+## 14. 运营单任务分发：两脚本两文件方案
+
+### 运营需要的东西
+
+| 文件 | 来源 | 用途 |
+|---|---|---|
+| `duix-avatar.tar` | 官方 GitHub Release | `docker load -i` 进本机；脚本会自动调 |
+| `Duix.Avatar-1.0.6-lite-setup.exe` | 官方 GitHub Release | 客户端，双击装 |
+| `start-duix-lite.bat` | 本仓库 `deploy/` | 双击入口（纯 ASCII） |
+| `start-duix-lite.ps1` | 本仓库 `deploy/` | 启动主体（UTF-8 with BOM） |
+
+打成 zip 发给运营，解压后跟 `duix-avatar.tar` 放同目录，双击 `.bat` 即可。
+
+### 前置环境（运营机器必须）
+
+1. NVIDIA 显卡（≥ 8 GB 显存，4060 Ti 实测）
+2. NVIDIA 驱动 + Windows WSL2 (`wsl --install`)
+3. Docker Desktop for Windows（启用 WSL2 后端）
+4. 磁盘 D:\\ 存在，至少留 30 GB 空闲
+
+### `start-duix-lite.ps1` 内部流程
+
+1. 找 docker.exe
+2. 检查 Docker Desktop 在跑
+3. 用一次性 `docker run nvidia-smi` 探针验证 GPU 接通（镜像没 load 时跳过此步）
+4. 检查镜像 → 没有就 `docker load -i duix-avatar.tar`（30 分钟超时）
+5. 建 `D:\duix_avatar_data\face2face\{temp,result,log}`
+6. 干掉同名旧容器
+7. `docker run` 起新容器（带 `--gpus all --restart always --privileged --shm-size=8g -p 8383:8383 -v d:/duix_avatar_data/face2face:/code/data` + `python /code/app_local.py`）
+8. 轮询 `http://127.0.0.1:8383/easy/query?code=ping` 自检（最多 60 秒）
+
+### 编码规则（重要）
+
+`.bat` 必须纯 ASCII，`.ps1` 必须 UTF-8 with BOM，详见全局 `~/.claude/CLAUDE.md` 「Windows 分发脚本」章节。
+完整版规则与范本路径见 `life/40_wiki/windows-distribution-scripts.md`。
+
+### 实测确认
+
+- 本机（leo 工作机，RTX 4060 Ti）：lite 容器 + 客户端 + curl 双链路均通
+- 运营机（春超机器，2026-05-15）：`start-duix-lite.bat` 双击 → 出片，通
+
+
