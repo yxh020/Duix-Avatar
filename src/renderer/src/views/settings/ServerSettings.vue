@@ -70,12 +70,6 @@
             <span class="status">{{ statusText(state.testResult.face2face) }}</span>
             <span class="detail">{{ detailText(state.testResult.face2face) }}</span>
           </div>
-          <div class="test-row" :class="rowClass(state.testResult.tts)">
-            <span class="dot"></span>
-            <span class="svc">TTS ({{ state.form.ip }}:{{ state.form.ttsPort }})</span>
-            <span class="status">{{ statusText(state.testResult.tts) }}</span>
-            <span class="detail">{{ detailText(state.testResult.tts) }}</span>
-          </div>
           <div v-if="hasPortOnly" class="hint-line">
             提示：端口通但服务无响应，通常是 Docker 容器还在启动，等 30 秒再试一次。
           </div>
@@ -117,7 +111,7 @@ const canTest = computed(() => {
 
 const hasPortOnly = computed(() => {
   const r = state.testResult
-  return r && (r.face2face?.status === 'port-only' || r.tts?.status === 'port-only')
+  return r && r.face2face?.status === 'port-only'
 })
 
 onMounted(async () => {
@@ -151,10 +145,8 @@ async function onTest() {
       return
     }
     state.testResult = res
-    const allOk = res.face2face?.status === 'ok' && res.tts?.status === 'ok'
-    if (allOk) MessagePlugin.success('两个服务都通')
-    else if (res.face2face?.status === 'fail' && res.tts?.status === 'fail') MessagePlugin.error('两个服务都连不上')
-    else MessagePlugin.warning('部分服务有问题，看下方详情')
+    if (res.face2face?.status === 'ok') MessagePlugin.success('face2face 服务正常')
+    else MessagePlugin.warning('face2face 服务有问题，看下方详情')
   } catch (err) {
     MessagePlugin.error('测试出错：' + (err && err.message))
   } finally {

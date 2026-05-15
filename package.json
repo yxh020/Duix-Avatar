@@ -1,6 +1,6 @@
 {
   "name": "Duix.Avatar",
-  "version": "1.0.7",
+  "version": "1.0.2",
   "description": "Duix.Avatar is a free and open-source AI avatar project developed by Duix.com",
   "main": "./out/main/index.js",
   "author": "duix.com",
