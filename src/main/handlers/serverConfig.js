@@ -7,7 +7,6 @@
 
 import net from 'net'
 import axios from 'axios'
-import log from '../logger.js'
 import { getEffectiveConfig } from '../config/config.js'
 import { saveOverride, clearOverride, getConfigFilePath } from '../config/server-config.js'
 
@@ -68,7 +67,7 @@ export default {
   },
 
   async save(_app, payload) {
-    log.info('[serverConfig.save] payload:', JSON.stringify(payload))
+    console.info('[serverConfig.save] payload:', JSON.stringify(payload))
     const r = saveOverride(payload || {})
     if (!r.ok) return { ok: false, error: r.error }
     return { ok: true, effective: getEffectiveConfig() }
@@ -86,7 +85,7 @@ export default {
     if (!ip || !Number.isInteger(f2fPort) || !Number.isInteger(ttsPort)) {
       return { ok: false, error: '参数不完整：需要 ip / face2facePort / ttsPort' }
     }
-    log.info(`[serverConfig.test] ip=${ip} f2f=${f2fPort} tts=${ttsPort}`)
+    console.info(`[serverConfig.test] ip=${ip} f2f=${f2fPort} tts=${ttsPort}`)
 
     const [face2face, tts] = await Promise.all([
       probeService(ip, f2fPort, `http://${ip}:${f2fPort}/easy/query?code=health-check`),

@@ -21,7 +21,7 @@ nsis:
   allowElevation: true
   perMachine: true
   allowToChangeInstallationDirectory: true
-  artifactName: ${productName}-${version}-setup.${ext}
+  artifactName: ${productName}-${version}-docker-setup.${ext}
   shortcutName: ${productName}
   uninstallDisplayName: ${productName}
   createDesktopShortcut: always

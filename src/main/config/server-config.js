@@ -14,7 +14,6 @@
 import fs from 'fs'
 import path from 'path'
 import { app } from 'electron'
-import log from '../logger.js'
 
 const CONFIG_FILE_NAME = 'server-config.json'
 
@@ -33,7 +32,7 @@ function loadFromDisk() {
     const obj = JSON.parse(raw)
     return sanitize(obj)
   } catch (err) {
-    log.warn('[server-config] 读取失败，按空配置处理：', err && err.message)
+    console.warn('[server-config] 读取失败，按空配置处理：', err && err.message)
     return {}
   }
 }
@@ -65,10 +64,10 @@ export function saveOverride(next) {
     fs.mkdirSync(path.dirname(p), { recursive: true })
     fs.writeFileSync(p, JSON.stringify(clean, null, 2), 'utf8')
     cached = clean
-    log.info('[server-config] 已保存：', JSON.stringify(clean))
+    console.info('[server-config] 已保存：', JSON.stringify(clean))
     return { ok: true, value: { ...clean } }
   } catch (err) {
-    log.error('[server-config] 保存失败：', err && err.message)
+    console.error('[server-config] 保存失败：', err && err.message)
     return { ok: false, error: err && err.message }
   }
 }
@@ -78,7 +77,7 @@ export function clearOverride() {
   try {
     if (fs.existsSync(p)) fs.unlinkSync(p)
   } catch (err) {
-    log.warn('[server-config] 删除文件失败：', err && err.message)
+    console.warn('[server-config] 删除文件失败：', err && err.message)
   }
   cached = {}
   return { ok: true }
