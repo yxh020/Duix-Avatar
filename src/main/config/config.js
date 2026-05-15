@@ -1,39 +1,101 @@
 import path from 'path'
 import os from 'os'
+import { getOverride } from './server-config.js'
 
 const isDev = process.env.NODE_ENV === 'development'
 const isWin = process.platform === 'win32'
 
-function resolveServiceUrl(envKey, defaultUrl) {
-  const envUrl = process.env[envKey]
-  return envUrl && envUrl.trim() ? envUrl.trim() : defaultUrl
+const DEFAULT_FACE2FACE_IP   = '127.0.0.1'
+const DEFAULT_FACE2FACE_PORT = 8383
+const DEFAULT_FACE2FACE_PATH = '/easy'
+const DEFAULT_TTS_IP   = '127.0.0.1'
+const DEFAULT_TTS_PORT = 18180
+
+// 解析 env 里的完整 URL → {host, port, path}。允许任何 env 已设置的值整体覆盖默认。
+function parseEnvUrl(envKey) {
+  const raw = process.env[envKey]
+  if (!raw || !raw.trim()) return null
+  try {
+    const u = new URL(raw.trim())
+    return {
+      host: u.hostname,
+      port: u.port ? Number(u.port) : null,
+      pathname: u.pathname || ''
+    }
+  } catch (_) {
+    return null
+  }
 }
 
-const defaultFace2FaceUrl = isDev ? 'http://127.0.0.1:8383/easy' : 'http://127.0.0.1:8383/easy'
-const defaultTtsUrl = isDev ? 'http://127.0.0.1:18180' : 'http://127.0.0.1:18180'
+function resolveFace2FaceUrl() {
+  const override = getOverride()
+  const env      = parseEnvUrl('DUIX_FACE2FACE_URL')
+  const ip   = override.ip            || (env && env.host) || DEFAULT_FACE2FACE_IP
+  const port = override.face2facePort || (env && env.port) || DEFAULT_FACE2FACE_PORT
+  // path 始终用默认 /easy（不让用户设置，避免误改）
+  const pathname = DEFAULT_FACE2FACE_PATH
+  return `http://${ip}:${port}${pathname}`
+}
 
+function resolveTtsUrl() {
+  const override = getOverride()
+  const env      = parseEnvUrl('DUIX_TTS_URL')
+  const ip   = override.ip      || (env && env.host) || DEFAULT_TTS_IP
+  const port = override.ttsPort || (env && env.port) || DEFAULT_TTS_PORT
+  return `http://${ip}:${port}`
+}
+
+// 用 getter，每次 ${serviceUrl.face2face} 访问都重新求值。
+// 用户在设置页保存后下一次 API 调用立刻生效，不用重启应用。
 export const serviceUrl = {
-  face2face: resolveServiceUrl('DUIX_FACE2FACE_URL', defaultFace2FaceUrl),
-  tts: resolveServiceUrl('DUIX_TTS_URL', defaultTtsUrl)
+  get face2face() { return resolveFace2FaceUrl() },
+  get tts() { return resolveTtsUrl() }
 }
 
-// face2face 容器名。运营机器 99% 跟 deploy/start-duix-lite.ps1 一致用 'duix-avatar-gen-video'。
-// 若哪台机器自定义了容器名，启动 electron 前设环境变量 DUIX_CONTAINER_NAME=xxx 即可。
+// 暴露给设置页 IPC 用，避免重复实现优先级逻辑
+export function getEffectiveConfig() {
+  const override = getOverride()
+  const envF2F   = parseEnvUrl('DUIX_FACE2FACE_URL')
+  const envTts   = parseEnvUrl('DUIX_TTS_URL')
+
+  const ip = override.ip || (envF2F && envF2F.host) || (envTts && envTts.host) || DEFAULT_FACE2FACE_IP
+  const face2facePort = override.face2facePort || (envF2F && envF2F.port) || DEFAULT_FACE2FACE_PORT
+  const ttsPort       = override.ttsPort      || (envTts && envTts.port) || DEFAULT_TTS_PORT
+
+  // 标注每个字段的来源，前端用来显示"当前来自 .bat 启动器 / 设置页"
+  function sourceOf(field, envHas) {
+    if (override[field] !== undefined) return 'user'
+    if (envHas) return 'env'
+    return 'default'
+  }
+  return {
+    ip,
+    face2facePort,
+    ttsPort,
+    sources: {
+      ip:            override.ip            !== undefined ? 'user' : ((envF2F && envF2F.host) || (envTts && envTts.host) ? 'env' : 'default'),
+      face2facePort: sourceOf('face2facePort', envF2F && envF2F.port),
+      ttsPort:       sourceOf('ttsPort',       envTts && envTts.port),
+    },
+    override: { ...override }
+  }
+}
+
 export const dockerConfig = {
-  containerName: resolveServiceUrl('DUIX_CONTAINER_NAME', 'duix-avatar-gen-video')
+  containerName: (process.env.DUIX_CONTAINER_NAME && process.env.DUIX_CONTAINER_NAME.trim()) || 'duix-avatar-gen-video'
 }
 
 export const assetPath = {
   model: isWin
     ? path.join('D:', 'duix_avatar_data', 'face2face', 'temp')
-    : path.join(os.homedir(), 'duix_avatar_data', 'face2face', 'temp'), // 模特视频
+    : path.join(os.homedir(), 'duix_avatar_data', 'face2face', 'temp'),
   ttsProduct: isWin
     ? path.join('D:', 'duix_avatar_data', 'face2face', 'temp')
-    : path.join(os.homedir(), 'duix_avatar_data', 'face2face', 'temp'), // TTS 产物
+    : path.join(os.homedir(), 'duix_avatar_data', 'face2face', 'temp'),
   ttsRoot: isWin
     ? path.join('D:', 'duix_avatar_data', 'voice', 'data')
-    : path.join(os.homedir(), 'duix_avatar_data', 'voice', 'data'), // TTS服务根目录
+    : path.join(os.homedir(), 'duix_avatar_data', 'voice', 'data'),
   ttsTrain: isWin
     ? path.join('D:', 'duix_avatar_data', 'voice', 'data', 'origin_audio')
-    : path.join(os.homedir(), 'duix_avatar_data', 'voice', 'data', 'origin_audio') // TTS 训练产物
+    : path.join(os.homedir(), 'duix_avatar_data', 'voice', 'data', 'origin_audio')
 }

@@ -1,19 +1,35 @@
 <template>
   <div class="menu-list">
-    <li v-for="(item, index) in state.menuList" :key="index" @click="handleClick(item)">
-      <div class="content-body">
-        <img class="icon" :src="item.active ? item.onIcon : item.offIcon" />
-        <div class="text" :style="item.active ? 'color: #434AF9' : ''">
-          {{ item.name }}
+    <div class="menu-top">
+      <li v-for="(item, index) in state.menuList" :key="index" @click="handleClick(item)">
+        <div class="content-body">
+          <img class="icon" :src="item.active ? item.onIcon : item.offIcon" />
+          <div class="text" :style="item.active ? 'color: #434AF9' : ''">
+            {{ item.name }}
+          </div>
+          <img class="active-icon" v-if="item.active" :src="activeIcon" />
         </div>
-        <img class="active-icon" v-if="item.active" :src="activeIcon" />
-      </div>
-    </li>
+      </li>
+    </div>
+    <div class="menu-bottom">
+      <li @click="handleClick(serverSetting)">
+        <div class="content-body">
+          <div class="icon icon--svg" :style="serverSetting.active ? 'color: #434AF9' : 'color: #9097a5'">
+            <ServerIcon size="28" />
+          </div>
+          <div class="text" :style="serverSetting.active ? 'color: #434AF9' : ''">
+            {{ serverSetting.name }}
+          </div>
+          <img class="active-icon" v-if="serverSetting.active" :src="activeIcon" />
+        </div>
+      </li>
+    </div>
   </div>
 </template>
 <script setup>
 import { useRouter, useRoute } from 'vue-router'
-import { reactive, watch, computed } from 'vue'
+import { reactive, watch, ref } from 'vue'
+import { ServerIcon } from 'tdesign-icons-vue-next'
 import onIcon from '../assets/images/home/menu/onHome.svg'
 import activeIcon from '../assets/images/home/menu/active.svg'
 import offIcon from '../assets/images/home/menu/offHome.svg'
@@ -45,8 +61,16 @@ const state = reactive({
   menuList: obj
 })
 
+// 服务器设置走独立块，固定在底部
+const serverSetting = ref({
+  key: 'common.menu.serverSetting',
+  name: '服务器',
+  active: false,
+  path: '/settings/server'
+})
+
 watch(locale, () => {
-  state.menuList.forEach((el, index) => {
+  state.menuList.forEach((el) => {
     el.name = t(el.key)
   })
 })
@@ -54,12 +78,9 @@ watch(
   () => unRoute.path,
   (newPath) => {
     state.menuList.forEach((el) => {
-      if (newPath.includes(el.path)) {
-        el.active = true
-      } else {
-        el.active = false
-      }
+      el.active = newPath.includes(el.path)
     })
+    serverSetting.value.active = newPath.startsWith(serverSetting.value.path)
   },
   { immediate: true }
 )
@@ -75,7 +96,17 @@ const handleClick = (item) => {
   left: 0;
   top: 0;
   padding-top: 60px;
+  padding-bottom: 12px;
   height: 100%;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+
+  .menu-top, .menu-bottom {
+    display: flex;
+    flex-direction: column;
+  }
+
   li {
     list-style: none;
     display: flex;
@@ -90,6 +121,11 @@ const handleClick = (item) => {
         width: 44px;
         height: 44px;
         display: block;
+      }
+      .icon--svg {
+        display: flex;
+        align-items: center;
+        justify-content: center;
       }
       .active-icon {
         position: absolute;
@@ -107,6 +143,11 @@ const handleClick = (item) => {
         margin-top: 3px;
       }
     }
+  }
+
+  .menu-bottom li {
+    margin-top: 0;
+    margin-bottom: 8px;
   }
 }
 </style>

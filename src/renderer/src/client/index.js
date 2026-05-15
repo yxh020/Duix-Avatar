@@ -23,5 +23,8 @@ export const Client = {
   },
   app: {
     ...window.client.app
+  },
+  serverConfig: {
+    ...window.client.serverConfig
   }
 }

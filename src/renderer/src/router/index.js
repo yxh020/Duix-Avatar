@@ -3,6 +3,7 @@ import home from '@renderer/views/home/index.vue'
 import account from '@renderer/views/account/index.vue'
 import VideoEditView from '@renderer/views/video-edit/VideoEditView.vue'
 import ModelQuickCreateView from '@renderer/views/model-quick-create/index.vue'
+import ServerSettingsView from '@renderer/views/settings/ServerSettings.vue'
 
 const router = createRouter({
   history: createWebHashHistory(),
@@ -31,6 +32,11 @@ const router = createRouter({
       path: '/account',
       name: 'account',
       component: account
+    },
+    {
+      path: '/settings/server',
+      name: 'serverSettings',
+      component: ServerSettingsView
     }
   ]
 })

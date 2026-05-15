@@ -1,9 +1,10 @@
 import { ipcMain } from "electron"
 import file from './file'
 import app from './app'
+import serverConfig from './serverConfig'
 
 
-const handles = [file, app]
+const handles = [file, app, serverConfig]
 
 export const registerWebHandles = (app) => {
 
